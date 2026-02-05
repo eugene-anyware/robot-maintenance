@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Maintenance Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Robot Maintenance Tracker</h1>
+            <div class="header-buttons">
+                <button id="debugBtn" class="btn-secondary">🐛 Debug</button>
+                <button id="addRobotBtn" class="btn-primary">+ Add Robot</button>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="schedule">Maintenance Schedule</button>
+            <button class="tab-btn" data-tab="logs">Maintenance Logs</button>
+        </nav>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="filter-bar">
+                <label>Filter by Robot:</label>
+                <select id="overviewRobotFilter">
+                    <option value="">All Robots</option>
+                </select>
+                <label>Filter by Customer:</label>
+                <select id="overviewCustomerFilter">
+                    <option value="">All Customers</option>
+                </select>
+                <button id="deleteRobotBtn" class="btn-delete-robot" onclick="deleteRobot()" style="display: none;">Delete Robot</button>
+            </div>
+            <h2>Robot Fleet</h2>
+            <p class="instruction-text">Click on a robot to select it, then use the "Delete" button to remove it.</p>
+            <div id="robotList" class="robot-grid"></div>
+        </div>
+
+        <!-- Schedule Tab -->
+        <div id="schedule" class="tab-content">
+            <div class="filter-bar">
+                <label>Select Robot:</label>
+                <select id="robotScheduleSelect">
+                    <option value="">All Robots</option>
+                </select>
+                <button id="addTaskBtn" class="btn-primary">+ Add Custom Task</button>
+            </div>
+            <h2>Maintenance Schedule</h2>
+            <div id="scheduleTable"></div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="logs" class="tab-content">
+            <div class="filter-bar">
+                <label>Select Robot:</label>
+                <select id="robotLogSelect">
+                    <option value="">All Robots</option>
+                </select>
+                <button id="addLogBtn" class="btn-primary">+ Add Log Entry</button>
+            </div>
+            <h2>Maintenance Logs</h2>
+            <div id="logEntries"></div>
+        </div>
+    </div>
+
+    <!-- Add Robot Modal -->
+    <div id="robotModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add New Robot</h2>
+            <form id="robotForm">
+                <label>Robot ID:</label>
+                <input type="text" id="robotId" required>
+
+                <label>Customer:</label>
+                <input type="text" id="robotCustomer" required>
+
+                <label>Location:</label>
+                <input type="text" id="robotLocation" required>
+
+                <label>Application:</label>
+                <select id="robotApplication">
+                    <option>Container Unloading</option>
+                    <option>Palletization</option>
+                    <option>Material Handling</option>
+                    <option>Other</option>
+                </select>
+
+                <label>Installation Date:</label>
+                <input type="date" id="robotInstallDate" required>
+
+                <button type="submit" class="btn-primary">Add Robot</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Log Modal -->
+    <div id="logModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add Maintenance Log</h2>
+            <form id="logForm">
+                <label>Robot:</label>
+                <select id="logRobotSelect" required></select>
+
+                <label>Date:</label>
+                <input type="date" id="logDate" required>
+
+                <label>Tasks Completed:</label>
+                <div id="taskChecklist" class="task-checklist"></div>
+
+                <label>Notes:</label>
+                <textarea id="logNotes" rows="3"></textarea>
+
+                <label>Photos (optional):</label>
+                <input type="file" id="logPhotos" multiple accept="image/*">
+
+                <button type="submit" class="btn-primary">Add Log Entry</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Custom Task Modal -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add Custom Maintenance Task</h2>
+            <form id="taskForm">
+                <label>Task Name:</label>
+                <input type="text" id="taskName" required placeholder="e.g., Check hydraulic fluid levels">
+
+                <label>Frequency:</label>
+                <select id="taskFrequency" required>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly (Every 3 Months)</option>
+                    <option value="semiAnnual">Semi-Annual (Every 6 Months)</option>
+                    <option value="annual">Annual (Every 12 Months)</option>
+                    <option value="biennial">Every 2 Years</option>
+                    <option value="threeYear">Every 3 Years</option>
+                    <option value="other">Other</option>
+                </select>
+
+                <label>Part Number (optional):</label>
+                <input type="text" id="taskPartNumber" placeholder="e.g., ABC-123">
+
+                <label>Notes (optional):</label>
+                <textarea id="taskNote" rows="3" placeholder="Additional information about this task"></textarea>
+
+                <button type="submit" class="btn-primary">Add Task</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
