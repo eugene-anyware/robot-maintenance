@@ -25,6 +25,7 @@
             <button class="tab-btn" data-tab="dashboard">Maintenance Dashboard</button>
             <button class="tab-btn" data-tab="schedule">Maintenance Schedule</button>
             <button class="tab-btn" data-tab="logs">Maintenance Logs</button>
+            <button class="tab-btn" data-tab="teams">Teams Integration</button>
         </nav>
 
         <!-- Overview Tab -->
@@ -49,7 +50,8 @@
         <div id="dashboard" class="tab-content">
             <h2>Maintenance Dashboard</h2>
             <div class="dashboard-summary" id="dashboardSummary"></div>
-            <h3 class="dashboard-section-title">Weekly Maintenance (Monday & Thursday) — Reminder at 2:00 PM</h3>
+            <h3 class="dashboard-section-title">Maintenance Reminders — All sent at 2:00 PM</h3>
+            <p class="schedule-info">Weekly: Mon & Thu | Monthly: 1st | Quarterly: Jan, Apr, Jul, Oct | Semi-Annual: Jan, Jul | Annual: Jan 1st</p>
             <div id="maintenanceAlerts" class="maintenance-alerts"></div>
         </div>
 
@@ -77,6 +79,58 @@
             </div>
             <h2>Maintenance Logs</h2>
             <div id="logEntries"></div>
+        </div>
+    </div>
+
+        <!-- Teams Integration Tab -->
+        <div id="teams" class="tab-content">
+            <h2>Microsoft Teams Integration</h2>
+
+            <div class="teams-setup">
+                <h3>Step 1: Create a Webhook in Teams</h3>
+                <ol class="setup-steps">
+                    <li>Open <strong>Microsoft Teams</strong></li>
+                    <li>Go to the channel where you want reminders</li>
+                    <li>Click the <strong>...</strong> (three dots) next to the channel name</li>
+                    <li>Select <strong>"Workflows"</strong></li>
+                    <li>Search for <strong>"Post to a channel when a webhook request is received"</strong></li>
+                    <li>Click it and follow the setup (name it "Maintenance Reminders")</li>
+                    <li>Copy the <strong>webhook URL</strong> it gives you</li>
+                    <li>Paste it below and click <strong>"Save & Test"</strong></li>
+                </ol>
+
+                <h3>Step 2: Paste Your Webhook URL</h3>
+                <div class="webhook-input-group">
+                    <input type="url" id="webhookUrl" placeholder="Paste your Teams webhook URL here..." value="">
+                    <button class="btn-primary" onclick="saveAndTestWebhook()">Save & Send Test Message</button>
+                </div>
+                <div id="webhookStatus" class="webhook-status"></div>
+
+                <h3>Step 3: Reminder Schedule</h3>
+                <div class="schedule-summary">
+                    <table class="schedule-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Frequency</th>
+                                <th>When</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Weekly</td><td>Every Monday & Thursday</td><td>2:00 PM</td></tr>
+                            <tr><td>Monthly</td><td>1st of each month</td><td>2:00 PM</td></tr>
+                            <tr><td>Quarterly</td><td>Jan 1, Apr 1, Jul 1, Oct 1</td><td>2:00 PM</td></tr>
+                            <tr><td>Semi-Annual</td><td>Jan 1, Jul 1</td><td>2:00 PM</td></tr>
+                            <tr><td>Annual</td><td>January 1</td><td>2:00 PM</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Send Manual Reminder Now</h3>
+                <p class="instruction-text">Send a reminder to Teams right now for all due/overdue maintenance:</p>
+                <button class="btn-primary" onclick="sendAllAlertsToTeams()">Send All Current Alerts to Teams</button>
+                <div id="manualSendStatus" class="webhook-status"></div>
+            </div>
         </div>
     </div>
 

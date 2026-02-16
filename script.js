@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLogs();
     renderTaskChecklist();
     renderDashboard();
+    loadWebhookUrl();
 });
 
 // Live clock
@@ -332,23 +333,24 @@ function addLog() {
 // MAINTENANCE DUE DATE CALCULATIONS
 // ==========================================
 
-function getNextDueDate(frequency, lastMaintenanceDate, trackingStartDate) {
-    const intervalDays = frequencyDays[frequency] || 30;
+// Weekly: every Monday and Thursday
+// Monthly: 1st of every month
+// Quarterly: 1st of Jan, Apr, Jul, Oct
+// Semi-Annual: 1st of Jan, Jul
+// Annual: 1st of Jan
+
+function getNextDueDate(frequency, _lastMaintenanceDate, trackingStartDate) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Weekly maintenance is due on Monday (1) and Thursday (4)
-    if (frequency === 'weekly') {
-        return getNextWeeklyDueDate(lastMaintenanceDate);
-    }
+    if (frequency === 'weekly') return getNextWeeklyDue();
+    if (frequency === 'monthly') return getNextMonthlyDue();
+    if (frequency === 'quarterly') return getNextQuarterlyDue();
+    if (frequency === 'semiAnnual') return getNextSemiAnnualDue();
+    if (frequency === 'annual') return getNextAnnualDue();
 
-    if (lastMaintenanceDate) {
-        const lastDate = new Date(lastMaintenanceDate);
-        const nextDue = new Date(lastDate);
-        nextDue.setDate(nextDue.getDate() + intervalDays);
-        return nextDue;
-    }
-
+    // Fallback for other frequencies
+    const intervalDays = frequencyDays[frequency] || 30;
     const startDate = new Date(trackingStartDate || today);
     startDate.setHours(0, 0, 0, 0);
     const nextDue = new Date(startDate);
@@ -356,51 +358,71 @@ function getNextDueDate(frequency, lastMaintenanceDate, trackingStartDate) {
     return nextDue;
 }
 
-// Weekly maintenance is due every Monday and Thursday
-function getNextWeeklyDueDate(lastMaintenanceDate) {
+// Weekly: next Monday (1) or Thursday (4)
+function getNextWeeklyDue() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, 4=Thu
+    const day = today.getDay();
 
-    // Find next Monday or Thursday from today
-    // daysUntilMon: days until next Monday
-    // daysUntilThu: days until next Thursday
-    let daysUntilMon = (1 - dayOfWeek + 7) % 7;
-    let daysUntilThu = (4 - dayOfWeek + 7) % 7;
+    let daysToMon = (1 - day + 7) % 7;
+    let daysToThu = (4 - day + 7) % 7;
+    if (daysToMon === 0) daysToMon = 0;
+    if (daysToThu === 0) daysToThu = 0;
 
-    // If today is Monday or Thursday, due today (0 days)
-    if (daysUntilMon === 0) daysUntilMon = 0;
-    if (daysUntilThu === 0) daysUntilThu = 0;
-
-    const nextDueInDays = Math.min(
-        daysUntilMon === 0 ? 0 : daysUntilMon,
-        daysUntilThu === 0 ? 0 : daysUntilThu
-    );
-
+    const nextDays = Math.min(daysToMon, daysToThu);
     const nextDue = new Date(today);
-    nextDue.setDate(nextDue.getDate() + nextDueInDays);
+    nextDue.setDate(nextDue.getDate() + nextDays);
+    return nextDue;
+}
 
-    // If there's a last maintenance date, check if this week's slot was already done
-    if (lastMaintenanceDate) {
-        const lastDate = new Date(lastMaintenanceDate);
-        lastDate.setHours(0, 0, 0, 0);
+// Monthly: 1st of next month (or today if it's the 1st)
+function getNextMonthlyDue() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (today.getDate() === 1) return today;
+    const nextDue = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return nextDue;
+}
 
-        // If last maintenance was today or after the next due, find the following slot
-        if (lastDate >= nextDue) {
-            // Already done for this slot, find the next one
-            const nextSlot = new Date(nextDue);
-            if (nextDueInDays === daysUntilMon || daysUntilMon === 0) {
-                // Current slot is Monday, next is Thursday
-                nextSlot.setDate(nextSlot.getDate() + ((4 - nextSlot.getDay() + 7) % 7 || 3));
-            } else {
-                // Current slot is Thursday, next is Monday
-                nextSlot.setDate(nextSlot.getDate() + ((1 - nextSlot.getDay() + 7) % 7 || 4));
-            }
-            return nextSlot;
+// Quarterly: 1st of Jan(0), Apr(3), Jul(6), Oct(9)
+function getNextQuarterlyDue() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const quarterMonths = [0, 3, 6, 9];
+    const currentMonth = today.getMonth();
+    const currentDay = today.getDate();
+
+    for (const m of quarterMonths) {
+        if (m > currentMonth || (m === currentMonth && currentDay === 1)) {
+            return new Date(today.getFullYear(), m, 1);
         }
     }
+    // Next year January
+    return new Date(today.getFullYear() + 1, 0, 1);
+}
 
-    return nextDue;
+// Semi-Annual: 1st of Jan(0), Jul(6)
+function getNextSemiAnnualDue() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const semiMonths = [0, 6];
+    const currentMonth = today.getMonth();
+    const currentDay = today.getDate();
+
+    for (const m of semiMonths) {
+        if (m > currentMonth || (m === currentMonth && currentDay === 1)) {
+            return new Date(today.getFullYear(), m, 1);
+        }
+    }
+    return new Date(today.getFullYear() + 1, 0, 1);
+}
+
+// Annual: 1st of Jan
+function getNextAnnualDue() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (today.getMonth() === 0 && today.getDate() === 1) return today;
+    return new Date(today.getFullYear() + 1, 0, 1);
 }
 
 function getLastMaintenanceDateForFrequency(robotId, frequency) {
@@ -464,8 +486,7 @@ function getAllMaintenanceAlerts() {
     robots.forEach(robot => {
         if (!robot.installDate) return;
 
-        // Only track weekly maintenance reminders for now
-        const activeFrequencies = ['weekly'];
+        const activeFrequencies = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
         activeFrequencies.forEach(frequency => {
             const mergedSchedule = getMergedSchedule();
             const tasks = mergedSchedule[frequency];
@@ -504,8 +525,7 @@ function updateRobotStatuses() {
         }
 
         let worstStatus = 'good';
-        // Only track weekly maintenance reminders for now
-        const activeFrequencies = ['weekly'];
+        const activeFrequencies = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
         activeFrequencies.forEach(frequency => {
             const mergedSchedule = getMergedSchedule();
             const tasks = mergedSchedule[frequency];
@@ -967,6 +987,177 @@ function openPhotoModal(photoSrc) {
 }
 
 // ==========================================
+// TEAMS WEBHOOK INTEGRATION
+// ==========================================
+
+function getWebhookUrl() {
+    return localStorage.getItem('teamsWebhookUrl') || '';
+}
+
+function saveAndTestWebhook() {
+    const urlInput = document.getElementById('webhookUrl');
+    const statusEl = document.getElementById('webhookStatus');
+    const url = urlInput.value.trim();
+
+    if (!url) {
+        statusEl.innerHTML = '<span class="status-error">Please paste a webhook URL first.</span>';
+        return;
+    }
+
+    localStorage.setItem('teamsWebhookUrl', url);
+    statusEl.innerHTML = '<span class="status-pending">Sending test message...</span>';
+
+    const testMessage = {
+        type: "message",
+        attachments: [{
+            contentType: "application/vnd.microsoft.card.adaptive",
+            contentUrl: null,
+            content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    {
+                        "type": "TextBlock",
+                        "size": "Large",
+                        "weight": "Bolder",
+                        "text": "Robot Maintenance Tracker - Test Message",
+                        "color": "Good"
+                    },
+                    {
+                        "type": "TextBlock",
+                        "text": "This is a test message from your Robot Maintenance Tracker. If you see this, the Teams integration is working!",
+                        "wrap": true
+                    },
+                    {
+                        "type": "FactSet",
+                        "facts": [
+                            { "title": "Total Robots:", "value": String(robots.length) },
+                            { "title": "Sent at:", "value": new Date().toLocaleString() },
+                            { "title": "Status:", "value": "Connection successful" }
+                        ]
+                    }
+                ]
+            }
+        }]
+    };
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testMessage)
+    })
+    .then(response => {
+        if (response.ok) {
+            statusEl.innerHTML = '<span class="status-success">Test message sent! Check your Teams channel.</span>';
+        } else {
+            response.text().then(text => {
+                statusEl.innerHTML = `<span class="status-error">Failed (${response.status}): ${text}</span>`;
+            });
+        }
+    })
+    .catch(error => {
+        statusEl.innerHTML = `<span class="status-error">Error: ${error.message}. This may be a CORS issue — see note below.</span>
+        <div class="cors-note">
+            <strong>If you see a CORS error:</strong> The webhook works, but browsers block direct calls.
+            Use the "Export Data" button instead and set up Power Automate to read the file and send messages.
+            Or test using this command in your terminal:<br>
+            <code>curl -H "Content-Type: application/json" -d '{"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","contentUrl":null,"content":{"type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","text":"Test from Robot Maintenance Tracker","weight":"Bolder"}]}}]}' "${url}"</code>
+        </div>`;
+    });
+}
+
+function sendAllAlertsToTeams() {
+    const statusEl = document.getElementById('manualSendStatus');
+    const url = getWebhookUrl();
+
+    if (!url) {
+        statusEl.innerHTML = '<span class="status-error">No webhook URL saved. Set it up in Step 2 above first.</span>';
+        return;
+    }
+
+    const alerts = getAllMaintenanceAlerts();
+    const criticalAlerts = alerts.filter(a => a.statusInfo.status === 'overdue' || a.statusInfo.status === 'due-soon');
+
+    if (criticalAlerts.length === 0 && alerts.length > 0) {
+        statusEl.innerHTML = '<span class="status-success">No overdue or due-soon items. All maintenance is on track!</span>';
+        return;
+    }
+
+    if (alerts.length === 0) {
+        statusEl.innerHTML = '<span class="status-error">No robots found. Add robots first.</span>';
+        return;
+    }
+
+    statusEl.innerHTML = '<span class="status-pending">Sending alerts to Teams...</span>';
+
+    // Build facts for each alert
+    const alertRows = criticalAlerts.map(a => ({
+        "type": "ColumnSet",
+        "columns": [
+            { "type": "Column", "width": "auto", "items": [{ "type": "TextBlock", "text": a.statusInfo.status === 'overdue' ? '🔴' : '🟡', "size": "Medium" }] },
+            { "type": "Column", "width": "stretch", "items": [
+                { "type": "TextBlock", "text": `**${a.robotId}** (${a.customer})`, "wrap": true },
+                { "type": "TextBlock", "text": `${a.frequencyLabel} | ${a.statusInfo.label} | Owner: ${a.owner}`, "size": "Small", "color": a.statusInfo.status === 'overdue' ? 'Attention' : 'Warning', "wrap": true }
+            ]}
+        ]
+    }));
+
+    const message = {
+        type: "message",
+        attachments: [{
+            contentType: "application/vnd.microsoft.card.adaptive",
+            contentUrl: null,
+            content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    {
+                        "type": "TextBlock",
+                        "size": "Large",
+                        "weight": "Bolder",
+                        "text": `Maintenance Reminder — ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`
+                    },
+                    {
+                        "type": "TextBlock",
+                        "text": `${criticalAlerts.filter(a => a.statusInfo.status === 'overdue').length} overdue, ${criticalAlerts.filter(a => a.statusInfo.status === 'due-soon').length} due soon`,
+                        "color": "Attention",
+                        "weight": "Bolder"
+                    },
+                    ...alertRows
+                ]
+            }
+        }]
+    };
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
+    })
+    .then(response => {
+        if (response.ok) {
+            statusEl.innerHTML = `<span class="status-success">Sent ${criticalAlerts.length} alert(s) to Teams!</span>`;
+        } else {
+            response.text().then(text => {
+                statusEl.innerHTML = `<span class="status-error">Failed (${response.status}): ${text}</span>`;
+            });
+        }
+    })
+    .catch(error => {
+        statusEl.innerHTML = `<span class="status-error">Error: ${error.message}</span>`;
+    });
+}
+
+// Load saved webhook URL on page load
+function loadWebhookUrl() {
+    const saved = getWebhookUrl();
+    const input = document.getElementById('webhookUrl');
+    if (input && saved) input.value = saved;
+}
+
+// ==========================================
 // EXPORT FOR POWER AUTOMATE
 // ==========================================
 
@@ -976,9 +1167,12 @@ function exportData() {
     const exportPayload = {
         exportDate: new Date().toISOString(),
         reminderSchedule: {
-            weeklyDays: ["Monday", "Thursday"],
             reminderTime: "14:00",
-            note: "Weekly maintenance is due every Monday and Thursday. Reminder at 2:00 PM."
+            weekly: { days: ["Monday", "Thursday"], note: "Every Monday and Thursday at 2 PM" },
+            monthly: { days: ["1st of each month"], note: "1st of every month at 2 PM" },
+            quarterly: { days: ["Jan 1", "Apr 1", "Jul 1", "Oct 1"], note: "1st of quarter at 2 PM" },
+            semiAnnual: { days: ["Jan 1", "Jul 1"], note: "1st of Jan and Jul at 2 PM" },
+            annual: { days: ["Jan 1"], note: "January 1st at 2 PM" }
         },
         robots: robots.map(r => ({
             id: r.id,
