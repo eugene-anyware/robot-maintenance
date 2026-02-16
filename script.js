@@ -337,21 +337,69 @@ function getNextDueDate(frequency, lastMaintenanceDate, trackingStartDate) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Weekly maintenance is due on Monday (1) and Thursday (4)
+    if (frequency === 'weekly') {
+        return getNextWeeklyDueDate(lastMaintenanceDate);
+    }
+
     if (lastMaintenanceDate) {
-        // Next due = last maintenance + interval
         const lastDate = new Date(lastMaintenanceDate);
         const nextDue = new Date(lastDate);
         nextDue.setDate(nextDue.getDate() + intervalDays);
         return nextDue;
     }
 
-    // No maintenance done yet - start counting from when the robot
-    // was added to the system (trackingStartDate), not deployment date.
-    // This prevents all robots deployed in the past from showing as overdue.
     const startDate = new Date(trackingStartDate || today);
     startDate.setHours(0, 0, 0, 0);
     const nextDue = new Date(startDate);
     nextDue.setDate(nextDue.getDate() + intervalDays);
+    return nextDue;
+}
+
+// Weekly maintenance is due every Monday and Thursday
+function getNextWeeklyDueDate(lastMaintenanceDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, 4=Thu
+
+    // Find next Monday or Thursday from today
+    // daysUntilMon: days until next Monday
+    // daysUntilThu: days until next Thursday
+    let daysUntilMon = (1 - dayOfWeek + 7) % 7;
+    let daysUntilThu = (4 - dayOfWeek + 7) % 7;
+
+    // If today is Monday or Thursday, due today (0 days)
+    if (daysUntilMon === 0) daysUntilMon = 0;
+    if (daysUntilThu === 0) daysUntilThu = 0;
+
+    const nextDueInDays = Math.min(
+        daysUntilMon === 0 ? 0 : daysUntilMon,
+        daysUntilThu === 0 ? 0 : daysUntilThu
+    );
+
+    const nextDue = new Date(today);
+    nextDue.setDate(nextDue.getDate() + nextDueInDays);
+
+    // If there's a last maintenance date, check if this week's slot was already done
+    if (lastMaintenanceDate) {
+        const lastDate = new Date(lastMaintenanceDate);
+        lastDate.setHours(0, 0, 0, 0);
+
+        // If last maintenance was today or after the next due, find the following slot
+        if (lastDate >= nextDue) {
+            // Already done for this slot, find the next one
+            const nextSlot = new Date(nextDue);
+            if (nextDueInDays === daysUntilMon || daysUntilMon === 0) {
+                // Current slot is Monday, next is Thursday
+                nextSlot.setDate(nextSlot.getDate() + ((4 - nextSlot.getDay() + 7) % 7 || 3));
+            } else {
+                // Current slot is Thursday, next is Monday
+                nextSlot.setDate(nextSlot.getDate() + ((1 - nextSlot.getDay() + 7) % 7 || 4));
+            }
+            return nextSlot;
+        }
+    }
+
     return nextDue;
 }
 
@@ -380,8 +428,10 @@ function getMaintenanceStatus(dueDate) {
 
     if (diffDays < 0) {
         return { status: 'overdue', label: `Overdue by ${Math.abs(diffDays)} day(s)`, daysUntil: diffDays, class: 'alert-overdue' };
-    } else if (diffDays <= 7) {
-        return { status: 'due-soon', label: diffDays === 0 ? 'Due today!' : `Due in ${diffDays} day(s)`, daysUntil: diffDays, class: 'alert-due-soon' };
+    } else if (diffDays === 0) {
+        return { status: 'due-soon', label: 'Due today!', daysUntil: 0, class: 'alert-due-soon' };
+    } else if (diffDays === 1) {
+        return { status: 'due-soon', label: 'Due tomorrow', daysUntil: 1, class: 'alert-due-soon' };
     } else {
         return { status: 'ok', label: `Due in ${diffDays} days`, daysUntil: diffDays, class: 'alert-ok' };
     }
@@ -510,7 +560,7 @@ function renderDashboard() {
             </div>
             <div class="summary-card summary-due-soon">
                 <div class="summary-number">${dueSoonCount}</div>
-                <div class="summary-label">Due Soon (7 days)</div>
+                <div class="summary-label">Due Today/Tomorrow</div>
             </div>
             <div class="summary-card summary-ok">
                 <div class="summary-number">${okCount}</div>
@@ -925,6 +975,11 @@ function exportData() {
 
     const exportPayload = {
         exportDate: new Date().toISOString(),
+        reminderSchedule: {
+            weeklyDays: ["Monday", "Thursday"],
+            reminderTime: "14:00",
+            note: "Weekly maintenance is due every Monday and Thursday. Reminder at 2:00 PM."
+        },
         robots: robots.map(r => ({
             id: r.id,
             customer: r.customer,
