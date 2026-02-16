@@ -214,6 +214,7 @@ function addRobot() {
         owner: document.getElementById('robotOwner').value,
         ownerEmail: document.getElementById('robotOwnerEmail').value,
         installDate: document.getElementById('robotInstallDate').value,
+        trackingStartDate: new Date().toISOString().split('T')[0],
         status: 'good'
     };
 
@@ -331,8 +332,7 @@ function addLog() {
 // MAINTENANCE DUE DATE CALCULATIONS
 // ==========================================
 
-function getNextDueDate(deploymentDate, frequency, lastMaintenanceDate) {
-    const deploy = new Date(deploymentDate);
+function getNextDueDate(frequency, lastMaintenanceDate, trackingStartDate) {
     const intervalDays = frequencyDays[frequency] || 30;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -345,23 +345,13 @@ function getNextDueDate(deploymentDate, frequency, lastMaintenanceDate) {
         return nextDue;
     }
 
-    // No maintenance done yet - calculate from deployment date
-    // Find the next occurrence after deployment
-    let nextDue = new Date(deploy);
+    // No maintenance done yet - start counting from when the robot
+    // was added to the system (trackingStartDate), not deployment date.
+    // This prevents all robots deployed in the past from showing as overdue.
+    const startDate = new Date(trackingStartDate || today);
+    startDate.setHours(0, 0, 0, 0);
+    const nextDue = new Date(startDate);
     nextDue.setDate(nextDue.getDate() + intervalDays);
-
-    // Keep advancing until we find a future or recent date
-    while (nextDue < today) {
-        nextDue.setDate(nextDue.getDate() + intervalDays);
-    }
-
-    // But also check if the previous one was missed
-    const prevDue = new Date(nextDue);
-    prevDue.setDate(prevDue.getDate() - intervalDays);
-    if (prevDue >= deploy && prevDue <= today) {
-        return prevDue; // This one was missed/overdue
-    }
-
     return nextDue;
 }
 
@@ -430,7 +420,7 @@ function getAllMaintenanceAlerts() {
             if (!tasks || tasks.length === 0) return;
 
             const lastMaint = getLastMaintenanceDateForFrequency(robot.id, frequency);
-            const nextDue = getNextDueDate(robot.installDate, frequency, lastMaint);
+            const nextDue = getNextDueDate(frequency, lastMaint, robot.trackingStartDate);
             const statusInfo = getMaintenanceStatus(nextDue);
 
             alerts.push({
@@ -468,7 +458,7 @@ function updateRobotStatuses() {
             if (!tasks || tasks.length === 0) return;
 
             const lastMaint = getLastMaintenanceDateForFrequency(robot.id, frequency);
-            const nextDue = getNextDueDate(robot.installDate, frequency, lastMaint);
+            const nextDue = getNextDueDate(frequency, lastMaint, robot.trackingStartDate);
             const statusInfo = getMaintenanceStatus(nextDue);
 
             if (statusInfo.status === 'overdue') {
@@ -1063,6 +1053,19 @@ function loadData() {
 
         if (savedRobots) {
             robots = JSON.parse(savedRobots);
+            // Backfill trackingStartDate for robots added before this feature
+            const todayStr = new Date().toISOString().split('T')[0];
+            let needsSave = false;
+            robots.forEach(r => {
+                if (!r.trackingStartDate) {
+                    r.trackingStartDate = todayStr;
+                    needsSave = true;
+                }
+            });
+            if (needsSave) {
+                localStorage.setItem('robots', JSON.stringify(robots));
+                console.log('Backfilled trackingStartDate for existing robots');
+            }
             console.log('Loaded robots:', robots.length);
         }
         if (savedLogs) {
