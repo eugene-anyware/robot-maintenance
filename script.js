@@ -414,7 +414,9 @@ function getAllMaintenanceAlerts() {
     robots.forEach(robot => {
         if (!robot.installDate) return;
 
-        Object.keys(frequencyDays).forEach(frequency => {
+        // Only track weekly maintenance reminders for now
+        const activeFrequencies = ['weekly'];
+        activeFrequencies.forEach(frequency => {
             const mergedSchedule = getMergedSchedule();
             const tasks = mergedSchedule[frequency];
             if (!tasks || tasks.length === 0) return;
@@ -452,7 +454,9 @@ function updateRobotStatuses() {
         }
 
         let worstStatus = 'good';
-        Object.keys(frequencyDays).forEach(frequency => {
+        // Only track weekly maintenance reminders for now
+        const activeFrequencies = ['weekly'];
+        activeFrequencies.forEach(frequency => {
             const mergedSchedule = getMergedSchedule();
             const tasks = mergedSchedule[frequency];
             if (!tasks || tasks.length === 0) return;
