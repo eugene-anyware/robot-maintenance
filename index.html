@@ -9,15 +9,20 @@
 <body>
     <div class="container">
         <header>
-            <h1>Robot Maintenance Tracker</h1>
+            <div class="header-left">
+                <h1>Robot Maintenance Tracker</h1>
+                <div id="currentDateTime" class="current-datetime"></div>
+            </div>
             <div class="header-buttons">
-                <button id="debugBtn" class="btn-secondary">🐛 Debug</button>
+                <button id="exportBtn" class="btn-secondary" onclick="exportData()">Export Data</button>
+                <button id="debugBtn" class="btn-secondary">Debug</button>
                 <button id="addRobotBtn" class="btn-primary">+ Add Robot</button>
             </div>
         </header>
 
         <nav class="tabs">
             <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="dashboard">Maintenance Dashboard</button>
             <button class="tab-btn" data-tab="schedule">Maintenance Schedule</button>
             <button class="tab-btn" data-tab="logs">Maintenance Logs</button>
         </nav>
@@ -38,6 +43,14 @@
             <h2>Robot Fleet</h2>
             <p class="instruction-text">Click on a robot to select it, then use the "Delete" button to remove it.</p>
             <div id="robotList" class="robot-grid"></div>
+        </div>
+
+        <!-- Maintenance Dashboard Tab -->
+        <div id="dashboard" class="tab-content">
+            <h2>Maintenance Dashboard</h2>
+            <div class="dashboard-summary" id="dashboardSummary"></div>
+            <h3 class="dashboard-section-title">Upcoming & Overdue Maintenance</h3>
+            <div id="maintenanceAlerts" class="maintenance-alerts"></div>
         </div>
 
         <!-- Schedule Tab -->
@@ -90,7 +103,13 @@
                     <option>Other</option>
                 </select>
 
-                <label>Installation Date:</label>
+                <label>Owner / Responsible Person:</label>
+                <input type="text" id="robotOwner" required placeholder="e.g., John Smith">
+
+                <label>Owner Email:</label>
+                <input type="email" id="robotOwnerEmail" required placeholder="e.g., john.smith@company.com">
+
+                <label>Deployment Date:</label>
                 <input type="date" id="robotInstallDate" required>
 
                 <button type="submit" class="btn-primary">Add Robot</button>
