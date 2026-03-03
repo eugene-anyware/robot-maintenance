@@ -147,6 +147,32 @@ ALTER PUBLICATION supabase_realtime ADD TABLE app_data;</pre>
                     <div id="webhookStatus" class="webhook-status"></div>
                 </div>
 
+                <!-- GITHUB INTEGRATION -->
+                <div class="setup-card">
+                    <h3>⚙️ GitHub Integration — Automatic &amp; Manual Reminders</h3>
+                    <p class="instruction-text">GitHub Actions sends scheduled reminders automatically every day and week. It also powers the "Send Now" buttons below without any CORS issues.</p>
+                    <div id="githubConnectionBadge" class="connection-badge badge-disconnected">🔴 GitHub not configured — "Send Now" will try direct (may hit CORS)</div>
+
+                    <details class="setup-steps-details">
+                        <summary><strong>One-time setup (~3 minutes)</strong></summary>
+                        <ol class="setup-steps">
+                            <li>Push this project to GitHub (if you haven't yet)</li>
+                            <li>In your GitHub repo → <strong>Settings → Secrets and variables → Actions → New repository secret</strong></li>
+                            <li>Name it <code>TEAMS_WEBHOOK_URL</code>, paste your Teams webhook URL, click <strong>Add secret</strong></li>
+                            <li>Go to <strong>github.com → your profile → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</strong></li>
+                            <li>Give it access to your <em>robot-maintenance</em> repo with <strong>Actions: Read and write</strong> permission</li>
+                            <li>Copy the token and paste it below with your repo name</li>
+                        </ol>
+                    </details>
+
+                    <div class="webhook-input-group supabase-inputs">
+                        <input type="text" id="githubRepo" placeholder="GitHub repo (e.g. gladys/robot-maintenance)">
+                        <input type="password" id="githubToken" placeholder="GitHub personal access token">
+                        <button class="btn-primary" onclick="saveGithubConfig()">Save</button>
+                    </div>
+                    <div id="githubStatus" class="webhook-status"></div>
+                </div>
+
                 <!-- REMINDER SCHEDULE -->
                 <div class="setup-card">
                     <h3>Step 3: Reminder Schedule</h3>

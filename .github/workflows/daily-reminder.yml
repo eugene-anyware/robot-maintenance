@@ -1,0 +1,40 @@
+name: Daily Teams Reminder
+
+on:
+  schedule:
+    # 2:00 PM EST (7 PM UTC). Adjust the hour if your timezone differs:
+    # EST = UTC-5 → 19:00 UTC | EDT = UTC-4 → 18:00 UTC
+    - cron: '0 19 * * 1-5'   # Weekdays only (Mon–Fri)
+  workflow_dispatch:           # Also allows manual trigger from GitHub website
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Daily Reminder to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          DATE=$(date -u +"%A, %B %-d, %Y")
+          curl -s -o /dev/null -w "%{http_code}" -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"type\": \"message\",
+              \"attachments\": [{
+                \"contentType\": \"application/vnd.microsoft.card.adaptive\",
+                \"contentUrl\": null,
+                \"content\": {
+                  \"\$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",
+                  \"type\": \"AdaptiveCard\",
+                  \"version\": \"1.4\",
+                  \"body\": [
+                    {\"type\": \"TextBlock\", \"size\": \"Large\", \"weight\": \"Bolder\", \"text\": \"📋 Daily Checklist — $DATE\", \"color\": \"Accent\"},
+                    {\"type\": \"TextBlock\", \"text\": \"Please complete all daily tasks before end of day:\", \"wrap\": true},
+                    {\"type\": \"TextBlock\", \"text\": \"☐  Container Tracksheet Entry\", \"wrap\": true},
+                    {\"type\": \"TextBlock\", \"text\": \"👉 https://customers.anyware-robotics.com\", \"wrap\": true, \"color\": \"Accent\"},
+                    {\"type\": \"TextBlock\", \"text\": \"☐  Camera Calibration & Validation Daily Check\", \"wrap\": true},
+                    {\"type\": \"TextBlock\", \"text\": \"☐  Lidar Calibration & Validation Daily Check\", \"wrap\": true}
+                  ]
+                }
+              }]
+            }"

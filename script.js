@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDashboard();
     loadWebhookUrl();
     loadSupabaseCredentials();
+    loadGithubConfig();
 });
 
 // Live clock
@@ -1206,41 +1207,99 @@ function getWebhookUrl() {
     return localStorage.getItem('teamsWebhookUrl') || '';
 }
 
-// Core Teams send function — routes through Netlify proxy to avoid CORS
+// ==========================================
+// GITHUB CONFIG
+// ==========================================
+
+function saveGithubConfig() {
+    const repo = document.getElementById('githubRepo').value.trim();
+    const token = document.getElementById('githubToken').value.trim();
+    const statusEl = document.getElementById('githubStatus');
+
+    if (!repo || !token) {
+        statusEl.innerHTML = '<span class="status-error">Please enter both the repo name and token.</span>';
+        return;
+    }
+
+    localStorage.setItem('githubRepo', repo);
+    localStorage.setItem('githubToken', token);
+    updateGithubStatusBadge();
+    statusEl.innerHTML = '<span class="status-success">GitHub config saved! "Send Now" buttons will now work from GitHub Pages.</span>';
+}
+
+function loadGithubConfig() {
+    const repoInput = document.getElementById('githubRepo');
+    const tokenInput = document.getElementById('githubToken');
+    const savedRepo = localStorage.getItem('githubRepo');
+    const savedToken = localStorage.getItem('githubToken');
+    if (repoInput && savedRepo) repoInput.value = savedRepo;
+    if (tokenInput && savedToken) tokenInput.value = savedToken;
+    updateGithubStatusBadge();
+}
+
+function updateGithubStatusBadge() {
+    const badge = document.getElementById('githubConnectionBadge');
+    if (!badge) return;
+    const repo = localStorage.getItem('githubRepo');
+    const token = localStorage.getItem('githubToken');
+    if (repo && token) {
+        badge.textContent = `🟢 GitHub configured (${repo}) — "Send Now" uses GitHub Actions`;
+        badge.className = 'connection-badge badge-connected';
+    } else {
+        badge.textContent = '🔴 GitHub not configured — "Send Now" will try direct (may hit CORS)';
+        badge.className = 'connection-badge badge-disconnected';
+    }
+}
+
+// Core Teams send — uses GitHub Actions API (server-side, no CORS) when configured,
+// falls back to direct fetch for local testing.
 function sendToTeams(webhookUrl, message, statusEl, successMsg) {
-    const proxyUrl = '/.netlify/functions/send-teams';
+    const githubRepo = localStorage.getItem('githubRepo');
+    const githubToken = localStorage.getItem('githubToken');
 
-    const doSend = (url, body) =>
-        fetch(url, {
+    if (githubRepo && githubToken) {
+        // Encode message as base64 so it passes safely through GitHub's workflow_dispatch input
+        const msgB64 = btoa(unescape(encodeURIComponent(JSON.stringify(message))));
+
+        statusEl.innerHTML = '<span class="status-pending">Triggering GitHub Action...</span>';
+
+        fetch(`https://api.github.com/repos/${githubRepo}/actions/workflows/send-teams-now.yml/dispatches`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-
-    // Try Netlify proxy first (works when deployed to Netlify)
-    doSend(proxyUrl, { webhookUrl, message })
+            headers: {
+                'Authorization': `Bearer ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ref: 'main', inputs: { message_b64: msgB64 } })
+        })
         .then(res => {
-            if (res.ok) {
-                statusEl.innerHTML = `<span class="status-success">${successMsg}</span>`;
+            if (res.status === 204) {
+                statusEl.innerHTML = `<span class="status-success">${successMsg} — sent via GitHub Actions. Check Teams in about 30 seconds.</span>`;
             } else {
-                // Proxy returned error — fall back to direct
-                return doSend(webhookUrl, message).then(r => {
-                    if (r.ok) statusEl.innerHTML = `<span class="status-success">${successMsg}</span>`;
-                    else r.text().then(t => statusEl.innerHTML = `<span class="status-error">Failed (${r.status}): ${t}</span>`);
+                res.json().then(data => {
+                    statusEl.innerHTML = `<span class="status-error">GitHub API error: ${data.message}. Make sure your token has Actions: Read and write permission.</span>`;
                 });
             }
         })
-        .catch(() => {
-            // Proxy not available (local dev) — try direct
-            doSend(webhookUrl, message)
-                .then(r => {
-                    if (r.ok) statusEl.innerHTML = `<span class="status-success">${successMsg} (sent directly)</span>`;
-                    else r.text().then(t => statusEl.innerHTML = `<span class="status-error">Failed (${r.status}): ${t}. Deploy to Netlify to fix CORS.</span>`);
-                })
-                .catch(err => {
-                    statusEl.innerHTML = `<span class="status-error">CORS error when running locally. Deploy to Netlify and it will work automatically. Error: ${err.message}</span>`;
-                });
+        .catch(err => {
+            statusEl.innerHTML = `<span class="status-error">Error: ${err.message}</span>`;
         });
+
+    } else {
+        // No GitHub config — try direct fetch (works locally, may CORS-fail on GitHub Pages)
+        fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(message)
+        })
+        .then(r => {
+            if (r.ok) statusEl.innerHTML = `<span class="status-success">${successMsg}</span>`;
+            else r.text().then(t => statusEl.innerHTML = `<span class="status-error">Failed (${r.status}): ${t}</span>`);
+        })
+        .catch(err => {
+            statusEl.innerHTML = `<span class="status-error">CORS error — add your GitHub repo &amp; token in the GitHub Integration section above. Error: ${err.message}</span>`;
+        });
+    }
 }
 
 function sendDailyReminder() {

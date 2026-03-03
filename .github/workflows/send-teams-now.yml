@@ -1,0 +1,22 @@
+name: Send Teams Message Now
+
+# Triggered from the website's "Send Now" buttons via the GitHub API
+on:
+  workflow_dispatch:
+    inputs:
+      message_b64:
+        description: 'Base64-encoded Teams message JSON'
+        required: true
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode and send to Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          MESSAGE=$(echo "${{ github.event.inputs.message_b64 }}" | base64 -d)
+          curl -s -o /dev/null -w "%{http_code}" -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$MESSAGE"
