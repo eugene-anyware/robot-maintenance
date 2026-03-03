@@ -1184,3 +1184,154 @@ table td:last-child {
     border-radius: 6px;
     border-left: 3px solid #667eea;
 }
+
+/* ==========================================
+   DASHBOARD — Filter Bar
+   ========================================== */
+.dashboard-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.dashboard-filter-bar label {
+    font-weight: 600;
+    color: #444;
+    white-space: nowrap;
+}
+
+/* ==========================================
+   DASHBOARD — Summary Cards
+   ========================================== */
+.summary-cards {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.summary-card {
+    flex: 1;
+    min-width: 110px;
+    padding: 18px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.summary-number {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.summary-label {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.summary-overdue  { background: #fdf0f0; color: #c0392b; }
+.summary-due-soon { background: #fef9e7; color: #d68910; }
+.summary-ok       { background: #eafaf1; color: #1e8449; }
+.summary-total    { background: #eaf2ff; color: #1a6fc4; }
+
+/* ==========================================
+   DASHBOARD — Robot Status Grid
+   ========================================== */
+.robot-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.robot-status-card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    border-left: 4px solid #ccc;
+}
+
+.robot-status-card.rsc-good    { border-left-color: #27ae60; }
+.robot-status-card.rsc-due     { border-left-color: #f39c12; }
+.robot-status-card.rsc-overdue { border-left-color: #e74c3c; }
+
+.rsc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.rsc-id {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.rsc-customer {
+    font-size: 13px;
+    color: #666;
+    margin-top: 2px;
+}
+
+.rsc-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.rsc-badge-good    { background: #eafaf1; color: #1e8449; }
+.rsc-badge-due     { background: #fef9e7; color: #d68910; }
+.rsc-badge-overdue { background: #fdf0f0; color: #c0392b; }
+
+.rsc-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.rsc-frequencies {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* ==========================================
+   DASHBOARD — Frequency Rows
+   ========================================== */
+.freq-row {
+    display: grid;
+    grid-template-columns: 20px 90px 90px 1fr;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.freq-row.freq-overdue  { background: #fdf0f0; }
+.freq-row.freq-due-soon { background: #fef9e7; }
+.freq-row.freq-ok       { background: #f7fbf7; }
+.freq-row.freq-undefined { background: #f5f5f5; }
+
+.freq-icon   { font-size: 13px; }
+.freq-name   { font-weight: 600; color: #333; }
+.freq-detail { font-size: 11px; color: #555; }
+.freq-dates  { font-size: 11px; color: #888; text-align: right; }

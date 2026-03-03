@@ -33,7 +33,9 @@ jobs:
                     {\"type\": \"TextBlock\", \"text\": \"☐  Container Tracksheet Entry\", \"wrap\": true},
                     {\"type\": \"TextBlock\", \"text\": \"👉 https://customers.anyware-robotics.com\", \"wrap\": true, \"color\": \"Accent\"},
                     {\"type\": \"TextBlock\", \"text\": \"☐  Camera Calibration & Validation Daily Check\", \"wrap\": true},
-                    {\"type\": \"TextBlock\", \"text\": \"☐  Lidar Calibration & Validation Daily Check\", \"wrap\": true}
+                    {\"type\": \"TextBlock\", \"text\": \"☐  Lidar Calibration & Validation Daily Check\", \"wrap\": true},
+                    {\"type\": \"TextBlock\", \"text\": \"☐  Database for Individual Container Unload Time\", \"wrap\": true},
+                    {\"type\": \"TextBlock\", \"text\": \"👉 https://anyware-robotics.atlassian.net/wiki/x/GYChLQ\", \"wrap\": true, \"color\": \"Accent\"}
                   ]
                 }
               }]

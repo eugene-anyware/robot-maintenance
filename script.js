@@ -381,6 +381,7 @@ function addRobot() {
                 application: document.getElementById('robotApplication').value,
                 owner: document.getElementById('robotOwner').value,
                 ownerEmail: document.getElementById('robotOwnerEmail').value,
+                ownerWebhookUrl: document.getElementById('robotOwnerWebhook').value.trim(),
                 installDate: document.getElementById('robotInstallDate').value,
             };
         }
@@ -393,6 +394,7 @@ function addRobot() {
             application: document.getElementById('robotApplication').value,
             owner: document.getElementById('robotOwner').value,
             ownerEmail: document.getElementById('robotOwnerEmail').value,
+            ownerWebhookUrl: document.getElementById('robotOwnerWebhook').value.trim(),
             installDate: document.getElementById('robotInstallDate').value,
             trackingStartDate: new Date().toISOString().split('T')[0],
             status: 'good'
@@ -424,6 +426,7 @@ function editRobot(robotId) {
     document.getElementById('robotApplication').value = robot.application;
     document.getElementById('robotOwner').value = robot.owner || '';
     document.getElementById('robotOwnerEmail').value = robot.ownerEmail || '';
+    document.getElementById('robotOwnerWebhook').value = robot.ownerWebhookUrl || '';
     document.getElementById('robotInstallDate').value = robot.installDate || '';
 
     document.getElementById('robotModalTitle').textContent = `Edit Robot: ${robotId}`;
@@ -763,107 +766,96 @@ function updateRobotStatuses() {
 function renderDashboard() {
     const summaryEl = document.getElementById('dashboardSummary');
     const alertsEl = document.getElementById('maintenanceAlerts');
+    const filterSelect = document.getElementById('dashboardRobotFilter');
+
+    // Populate filter dropdown
+    if (filterSelect) {
+        const currentVal = filterSelect.value;
+        filterSelect.innerHTML = '<option value="">All Robots</option>';
+        robots.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            opt.textContent = `${r.id} — ${r.customer}`;
+            if (r.id === currentVal) opt.selected = true;
+            filterSelect.appendChild(opt);
+        });
+    }
+
+    const robotFilter = filterSelect ? filterSelect.value : '';
 
     if (robots.length === 0) {
         summaryEl.innerHTML = '';
-        alertsEl.innerHTML = `
-            <div class="empty-state">
-                <h3>No robots added yet</h3>
-                <p>Add robots in the Overview tab to see maintenance dashboard</p>
-            </div>`;
+        alertsEl.innerHTML = `<div class="empty-state"><h3>No robots added yet</h3><p>Add robots in the Overview tab</p></div>`;
         return;
     }
 
     updateRobotStatuses();
-    const alerts = getAllMaintenanceAlerts();
 
-    const overdueCount = alerts.filter(a => a.statusInfo.status === 'overdue').length;
-    const dueSoonCount = alerts.filter(a => a.statusInfo.status === 'due-soon').length;
-    const okCount = alerts.filter(a => a.statusInfo.status === 'ok').length;
+    // Summary counts across ALL robots
+    const robotsOverdue = robots.filter(r => r.status === 'overdue').length;
+    const robotsDue    = robots.filter(r => r.status === 'due').length;
+    const robotsOk     = robots.filter(r => r.status === 'good').length;
 
     summaryEl.innerHTML = `
         <div class="summary-cards">
             <div class="summary-card summary-overdue">
-                <div class="summary-number">${overdueCount}</div>
+                <div class="summary-number">${robotsOverdue}</div>
                 <div class="summary-label">Overdue</div>
             </div>
             <div class="summary-card summary-due-soon">
-                <div class="summary-number">${dueSoonCount}</div>
-                <div class="summary-label">Due Today/Tomorrow</div>
+                <div class="summary-number">${robotsDue}</div>
+                <div class="summary-label">Due Soon</div>
             </div>
             <div class="summary-card summary-ok">
-                <div class="summary-number">${okCount}</div>
+                <div class="summary-number">${robotsOk}</div>
                 <div class="summary-label">On Track</div>
             </div>
             <div class="summary-card summary-total">
                 <div class="summary-number">${robots.length}</div>
                 <div class="summary-label">Total Robots</div>
             </div>
-        </div>
-    `;
+        </div>`;
 
-    if (alerts.length === 0) {
-        alertsEl.innerHTML = `
-            <div class="empty-state">
-                <h3>No maintenance alerts</h3>
-                <p>All robots are up to date</p>
+    const freqLabels = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', semiAnnual: 'Semi-Annual', annual: 'Annual' };
+    const activeFreqs = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
+
+    const filteredRobots = robotFilter ? robots.filter(r => r.id === robotFilter) : robots;
+
+    alertsEl.innerHTML = `<div class="robot-status-grid">${
+        filteredRobots.map(robot => {
+            const statusLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
+
+            const freqRows = activeFreqs.map(freq => {
+                const lastMaint = getLastMaintenanceDateForFrequency(robot.id, freq);
+                const nextDue   = getNextDueDate(freq, lastMaint, robot.trackingStartDate);
+                const si        = getMaintenanceStatus(nextDue);
+                const icon      = si.status === 'overdue' ? '🔴' : si.status === 'due-soon' ? '🟡' : '🟢';
+                const nextStr   = nextDue ? nextDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+                const lastStr   = lastMaint ? new Date(lastMaint).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Never';
+                return `<div class="freq-row freq-${si.status}">
+                    <span class="freq-icon">${icon}</span>
+                    <span class="freq-name">${freqLabels[freq]}</span>
+                    <span class="freq-detail">${si.label}</span>
+                    <span class="freq-dates">Next ${nextStr} · Last ${lastStr}</span>
+                </div>`;
+            }).join('');
+
+            return `<div class="robot-status-card rsc-${robot.status}">
+                <div class="rsc-header">
+                    <div>
+                        <div class="rsc-id">${robot.id}</div>
+                        <div class="rsc-customer">${robot.customer}</div>
+                    </div>
+                    <span class="rsc-badge rsc-badge-${robot.status}">${statusLabel}</span>
+                </div>
+                <div class="rsc-meta">
+                    <span>📍 ${robot.location}</span>
+                    <span>👤 ${robot.owner || '—'}</span>
+                </div>
+                <div class="rsc-frequencies">${freqRows}</div>
             </div>`;
-        return;
-    }
-
-    // Only show overdue and due-soon by default, plus next 10 upcoming
-    const criticalAlerts = alerts.filter(a => a.statusInfo.status === 'overdue' || a.statusInfo.status === 'due-soon');
-    const upcomingAlerts = alerts.filter(a => a.statusInfo.status === 'ok').slice(0, 10);
-    const displayAlerts = [...criticalAlerts, ...upcomingAlerts];
-
-    alertsEl.innerHTML = `
-        <div class="alerts-table-container">
-            <table class="alerts-table">
-                <thead>
-                    <tr>
-                        <th>Status</th>
-                        <th>Robot</th>
-                        <th>Owner</th>
-                        <th>Frequency</th>
-                        <th>Last Done</th>
-                        <th>Next Due</th>
-                        <th>Tasks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${displayAlerts.map(alert => `
-                        <tr class="${alert.statusInfo.class}">
-                            <td>
-                                <span class="alert-badge ${alert.statusInfo.class}">
-                                    ${alert.statusInfo.status === 'overdue' ? 'OVERDUE' : alert.statusInfo.status === 'due-soon' ? 'DUE SOON' : 'OK'}
-                                </span>
-                            </td>
-                            <td>
-                                <strong>${alert.robotId}</strong>
-                                <div class="robot-customer">${alert.customer}</div>
-                            </td>
-                            <td>
-                                <div>${alert.owner}</div>
-                                ${alert.ownerEmail ? `<div class="owner-email">${alert.ownerEmail}</div>` : ''}
-                            </td>
-                            <td><span class="frequency-tag">${alert.frequencyLabel}</span></td>
-                            <td>${alert.lastMaintenance ? formatDate(alert.lastMaintenance) : '<span class="never-done">Never done</span>'}</td>
-                            <td>
-                                <strong>${formatDate(alert.nextDue)}</strong>
-                                <div class="due-detail">${alert.statusInfo.label}</div>
-                            </td>
-                            <td>
-                                <div class="alert-tasks">
-                                    ${alert.tasks.slice(0, 3).map(t => `<div class="alert-task-item">${t}</div>`).join('')}
-                                    ${alert.tasks.length > 3 ? `<div class="alert-task-more">+${alert.tasks.length - 3} more</div>` : ''}
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
+        }).join('')
+    }</div>`;
 }
 
 // ==========================================
@@ -1320,11 +1312,13 @@ function sendDailyReminder() {
                 "version": "1.4",
                 "body": [
                     { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `📋 Daily Checklist — ${dateStr}`, "color": "Accent" },
-                    { "type": "TextBlock", "text": "Please complete all three daily tasks:", "wrap": true },
+                    { "type": "TextBlock", "text": "Please complete all daily tasks before end of day:", "wrap": true },
                     { "type": "TextBlock", "text": "☐  **Container Tracksheet Entry**", "wrap": true },
                     { "type": "TextBlock", "text": "👉 [Open Tracksheet → customers.anyware-robotics.com](https://customers.anyware-robotics.com)", "wrap": true, "color": "Accent" },
                     { "type": "TextBlock", "text": "☐  Camera Calibration & Validation Daily Check", "wrap": true },
-                    { "type": "TextBlock", "text": "☐  Lidar Calibration & Validation Daily Check", "wrap": true }
+                    { "type": "TextBlock", "text": "☐  Lidar Calibration & Validation Daily Check", "wrap": true },
+                    { "type": "TextBlock", "text": "☐  **Database for Individual Container Unload Time**", "wrap": true },
+                    { "type": "TextBlock", "text": "👉 [Open Database → Confluence](https://anyware-robotics.atlassian.net/wiki/x/GYChLQ)", "wrap": true, "color": "Accent" }
                 ]
             }
         }]
@@ -1334,17 +1328,40 @@ function sendDailyReminder() {
     sendToTeams(url, message, statusEl, 'Daily reminder sent to Teams!');
 }
 
+function buildWeeklyMessageForRobot(robot, dateStr) {
+    return {
+        type: "message",
+        attachments: [{
+            contentType: "application/vnd.microsoft.card.adaptive",
+            contentUrl: null,
+            content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `🔧 Weekly Maintenance — ${robot.id} — ${dateStr}`, "color": "Warning" },
+                    { "type": "TextBlock", "text": `**${robot.customer}** · ${robot.location}`, "wrap": true },
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Weekly Tasks:", "spacing": "Medium" },
+                    { "type": "TextBlock", "text": "☐  System wipe down\n☐  Dragons inspected\n☐  Gripper inspected\n☐  IOLink Inspected\n☐  Operator station cleaned", "wrap": true },
+                    { "type": "TextBlock", "text": `Responsible: ${robot.owner || '—'}`, "wrap": true, "spacing": "Medium", "isSubtle": true }
+                ]
+            }
+        }]
+    };
+}
+
 function sendWeeklyReminder() {
     const statusEl = document.getElementById('manualSendStatus');
-    const url = getWebhookUrl();
-    if (!url) { statusEl.innerHTML = '<span class="status-error">No webhook URL saved. Set it up in Step 2 above first.</span>'; return; }
+    const mainUrl = getWebhookUrl();
+    if (!mainUrl) { statusEl.innerHTML = '<span class="status-error">No webhook URL saved. Set it up in Step 2 above first.</span>'; return; }
 
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     const robotListText = robots.length > 0
         ? robots.map(r => `• ${r.id} (${r.customer} — ${r.location})`).join('\n')
         : '• No robots added yet';
 
-    const message = {
+    // Main channel summary message
+    const summaryMessage = {
         type: "message",
         attachments: [{
             contentType: "application/vnd.microsoft.card.adaptive",
@@ -1366,7 +1383,21 @@ function sendWeeklyReminder() {
     };
 
     statusEl.innerHTML = '<span class="status-pending">Sending weekly reminder...</span>';
-    sendToTeams(url, message, statusEl, 'Weekly reminder sent to Teams!');
+
+    // Send to main channel
+    sendToTeams(mainUrl, summaryMessage, statusEl, 'Weekly reminder sent to main channel!');
+
+    // Send per-robot messages to owner webhooks
+    const robotsWithWebhooks = robots.filter(r => r.ownerWebhookUrl);
+    if (robotsWithWebhooks.length > 0) {
+        robotsWithWebhooks.forEach(robot => {
+            const msg = buildWeeklyMessageForRobot(robot, dateStr);
+            sendToTeams(robot.ownerWebhookUrl, msg, null, null);
+        });
+        setTimeout(() => {
+            statusEl.innerHTML = `<span class="status-success">✅ Weekly reminder sent to main channel + ${robotsWithWebhooks.length} owner channel(s)!</span>`;
+        }, 2000);
+    }
 }
 
 function saveAndTestWebhook() {
