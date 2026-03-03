@@ -2,9 +2,17 @@
 let robots = [];
 let maintenanceLogs = [];
 let customTasks = [];
+let dailyReminderItems = [];
 let selectedRobotId = null;
 let editingRobotId = null;
 let supabaseClient = null;
+
+const DEFAULT_DAILY_ITEMS = [
+    { id: 'dr1', label: 'Container Tracksheet Entry', url: 'https://customers.anyware-robotics.com' },
+    { id: 'dr2', label: 'Camera Calibration & Validation Daily Check', url: '' },
+    { id: 'dr3', label: 'Lidar Calibration & Validation Daily Check', url: '' },
+    { id: 'dr4', label: 'Database for Individual Container Unload Time', url: 'https://anyware-robotics.atlassian.net/wiki/x/GYChLQ' }
+];
 
 // Frequency intervals in days
 const frequencyDays = {
@@ -78,6 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderLogs();
     renderTaskChecklist();
     renderDashboard();
+    renderDailyReminderList();
     loadWebhookUrl();
     loadSupabaseCredentials();
     loadGithubConfig();
@@ -208,9 +217,11 @@ async function loadDataFromSupabase() {
     const robotsRow = data.find(r => r.key === 'robots');
     const logsRow = data.find(r => r.key === 'maintenance_logs');
     const tasksRow = data.find(r => r.key === 'custom_tasks');
+    const dailyRow = data.find(r => r.key === 'daily_reminder_items');
     robots = robotsRow ? robotsRow.value : [];
     maintenanceLogs = logsRow ? logsRow.value : [];
     customTasks = tasksRow ? tasksRow.value : [];
+    dailyReminderItems = (dailyRow && dailyRow.value.length > 0) ? dailyRow.value : [...DEFAULT_DAILY_ITEMS];
 }
 
 async function saveDataToSupabase() {
@@ -218,7 +229,8 @@ async function saveDataToSupabase() {
     const { error } = await supabaseClient.from('app_data').upsert([
         { key: 'robots', value: robots, updated_at: new Date().toISOString() },
         { key: 'maintenance_logs', value: maintenanceLogs, updated_at: new Date().toISOString() },
-        { key: 'custom_tasks', value: customTasks, updated_at: new Date().toISOString() }
+        { key: 'custom_tasks', value: customTasks, updated_at: new Date().toISOString() },
+        { key: 'daily_reminder_items', value: dailyReminderItems, updated_at: new Date().toISOString() }
     ]);
     if (error) console.error('Supabase save error:', error);
 }
@@ -247,6 +259,10 @@ function subscribeToRealtime() {
                 renderSchedule();
                 renderTaskChecklist();
             }
+            if (key === 'daily_reminder_items') {
+                dailyReminderItems = value;
+                renderDailyReminderList();
+            }
         })
         .subscribe();
 }
@@ -264,6 +280,7 @@ function initTabs() {
             });
             document.getElementById(tabName).classList.add('active');
             if (tabName === 'dashboard') renderDashboard();
+            if (tabName === 'teams') renderDailyReminderList();
         });
     });
 }
@@ -791,71 +808,68 @@ function renderDashboard() {
 
     updateRobotStatuses();
 
-    // Summary counts across ALL robots
+    // Summary chips (all robots, ignore filter)
     const robotsOverdue = robots.filter(r => r.status === 'overdue').length;
     const robotsDue    = robots.filter(r => r.status === 'due').length;
     const robotsOk     = robots.filter(r => r.status === 'good').length;
 
     summaryEl.innerHTML = `
         <div class="summary-cards">
-            <div class="summary-card summary-overdue">
-                <div class="summary-number">${robotsOverdue}</div>
-                <div class="summary-label">Overdue</div>
-            </div>
-            <div class="summary-card summary-due-soon">
-                <div class="summary-number">${robotsDue}</div>
-                <div class="summary-label">Due Soon</div>
-            </div>
-            <div class="summary-card summary-ok">
-                <div class="summary-number">${robotsOk}</div>
-                <div class="summary-label">On Track</div>
-            </div>
-            <div class="summary-card summary-total">
-                <div class="summary-number">${robots.length}</div>
-                <div class="summary-label">Total Robots</div>
-            </div>
+            <div class="summary-card summary-overdue"><div class="summary-number">${robotsOverdue}</div><div class="summary-label">Overdue</div></div>
+            <div class="summary-card summary-due-soon"><div class="summary-number">${robotsDue}</div><div class="summary-label">Due Soon</div></div>
+            <div class="summary-card summary-ok"><div class="summary-number">${robotsOk}</div><div class="summary-label">On Track</div></div>
+            <div class="summary-card summary-total"><div class="summary-number">${robots.length}</div><div class="summary-label">Total Robots</div></div>
         </div>`;
 
-    const freqLabels = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', semiAnnual: 'Semi-Annual', annual: 'Annual' };
-    const activeFreqs = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
+    const freqCols = [
+        { key: 'weekly',     label: 'Weekly' },
+        { key: 'monthly',    label: 'Monthly' },
+        { key: 'quarterly',  label: 'Quarterly' },
+        { key: 'semiAnnual', label: 'Semi-Ann.' },
+        { key: 'annual',     label: 'Annual' }
+    ];
 
     const filteredRobots = robotFilter ? robots.filter(r => r.id === robotFilter) : robots;
 
-    alertsEl.innerHTML = `<div class="robot-status-grid">${
-        filteredRobots.map(robot => {
-            const statusLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
+    const rows = filteredRobots.map(robot => {
+        const statusLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
 
-            const freqRows = activeFreqs.map(freq => {
-                const lastMaint = getLastMaintenanceDateForFrequency(robot.id, freq);
-                const nextDue   = getNextDueDate(freq, lastMaint, robot.trackingStartDate);
-                const si        = getMaintenanceStatus(nextDue);
-                const icon      = si.status === 'overdue' ? '🔴' : si.status === 'due-soon' ? '🟡' : '🟢';
-                const nextStr   = nextDue ? nextDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
-                const lastStr   = lastMaint ? new Date(lastMaint).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : 'Never';
-                return `<div class="freq-row freq-${si.status}">
-                    <span class="freq-icon">${icon}</span>
-                    <span class="freq-name">${freqLabels[freq]}</span>
-                    <span class="freq-detail">${si.label}</span>
-                    <span class="freq-dates">Next ${nextStr} · Last ${lastStr}</span>
-                </div>`;
-            }).join('');
+        const freqCells = freqCols.map(({ key }) => {
+            const lastMaint = getLastMaintenanceDateForFrequency(robot.id, key);
+            const nextDue   = getNextDueDate(key, lastMaint, robot.trackingStartDate);
+            const si        = getMaintenanceStatus(nextDue);
+            const icon      = si.status === 'overdue' ? '🔴' : si.status === 'due-soon' ? '🟡' : '🟢';
+            const nextStr   = nextDue ? nextDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+            const label     = si.status === 'overdue' ? 'Overdue' : (si.status === 'due-soon' ? 'Due Soon' : nextStr);
+            return `<td class="dash-cell dash-cell-${si.status}"><span class="dash-icon">${icon}</span><span class="dash-date">${label}</span></td>`;
+        }).join('');
 
-            return `<div class="robot-status-card rsc-${robot.status}">
-                <div class="rsc-header">
-                    <div>
-                        <div class="rsc-id">${robot.id}</div>
-                        <div class="rsc-customer">${robot.customer}</div>
-                    </div>
-                    <span class="rsc-badge rsc-badge-${robot.status}">${statusLabel}</span>
-                </div>
-                <div class="rsc-meta">
-                    <span>📍 ${robot.location}</span>
-                    <span>👤 ${robot.owner || '—'}</span>
-                </div>
-                <div class="rsc-frequencies">${freqRows}</div>
-            </div>`;
-        }).join('')
-    }</div>`;
+        return `<tr>
+            <td class="dash-robot-id">${robot.id}</td>
+            <td class="dash-customer">${robot.customer}</td>
+            <td class="dash-location">${robot.location}</td>
+            <td class="dash-owner">${robot.owner || '—'}</td>
+            <td><span class="rsc-badge rsc-badge-${robot.status}">${statusLabel}</span></td>
+            ${freqCells}
+        </tr>`;
+    }).join('');
+
+    alertsEl.innerHTML = `
+        <div class="dash-table-wrapper">
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th>Robot ID</th>
+                        <th>Customer</th>
+                        <th>Location</th>
+                        <th>Owner</th>
+                        <th>Status</th>
+                        ${freqCols.map(f => `<th>${f.label}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
 }
 
 // ==========================================
@@ -1294,33 +1308,99 @@ function sendToTeams(webhookUrl, message, statusEl, successMsg) {
     }
 }
 
+// ==========================================
+// DAILY REMINDER ITEM MANAGEMENT
+// ==========================================
+
+function renderDailyReminderList() {
+    const el = document.getElementById('dailyReminderList');
+    if (!el) return;
+    if (dailyReminderItems.length === 0) {
+        el.innerHTML = '<p class="instruction-text">No items yet. Click &quot;+ Add Item&quot; to add one.</p>';
+        return;
+    }
+    el.innerHTML = dailyReminderItems.map(item => `
+        <div class="dr-item" id="dr-item-${item.id}">
+            <div class="dr-item-view">
+                <div class="dr-item-content">
+                    <span class="dr-item-label">☐ ${item.label}</span>
+                    ${item.url ? `<a class="dr-item-url" href="${item.url}" target="_blank">🔗 ${item.url}</a>` : ''}
+                </div>
+                <div class="dr-item-actions">
+                    <button class="btn-icon" onclick="editDailyItem('${item.id}')" title="Edit">✏️</button>
+                    <button class="btn-icon btn-icon-delete" onclick="deleteDailyItem('${item.id}')" title="Delete">🗑️</button>
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+function addDailyItem() {
+    const newId = 'dr' + Date.now();
+    dailyReminderItems.push({ id: newId, label: '', url: '' });
+    saveData();
+    renderDailyReminderList();
+    editDailyItem(newId);
+}
+
+function editDailyItem(id) {
+    const item = dailyReminderItems.find(i => i.id === id);
+    if (!item) return;
+    const el = document.getElementById(`dr-item-${id}`);
+    if (!el) return;
+    el.innerHTML = `
+        <div class="dr-item-edit">
+            <input type="text" class="dr-edit-label" value="${item.label}" placeholder="Task description (required)">
+            <input type="url" class="dr-edit-url" value="${item.url || ''}" placeholder="Link URL (optional)">
+            <div class="dr-edit-actions">
+                <button class="btn-primary btn-sm" onclick="saveDailyItemEdit('${id}')">Save</button>
+                <button class="btn-secondary btn-sm" onclick="renderDailyReminderList()">Cancel</button>
+            </div>
+        </div>`;
+    el.querySelector('.dr-edit-label').focus();
+}
+
+function saveDailyItemEdit(id) {
+    const el = document.getElementById(`dr-item-${id}`);
+    if (!el) return;
+    const label = el.querySelector('.dr-edit-label').value.trim();
+    const url = el.querySelector('.dr-edit-url').value.trim();
+    if (!label) { el.querySelector('.dr-edit-label').style.border = '1px solid red'; return; }
+    const idx = dailyReminderItems.findIndex(i => i.id === id);
+    if (idx !== -1) dailyReminderItems[idx] = { ...dailyReminderItems[idx], label, url };
+    saveData();
+    renderDailyReminderList();
+}
+
+function deleteDailyItem(id) {
+    if (!confirm('Delete this reminder item?')) return;
+    dailyReminderItems = dailyReminderItems.filter(i => i.id !== id);
+    saveData();
+    renderDailyReminderList();
+}
+
 function sendDailyReminder() {
     const statusEl = document.getElementById('manualSendStatus');
     const url = getWebhookUrl();
     if (!url) { statusEl.innerHTML = '<span class="status-error">No webhook URL saved. Set it up in Step 2 above first.</span>'; return; }
+    if (dailyReminderItems.length === 0) { statusEl.innerHTML = '<span class="status-error">No daily reminder items configured. Add items in the Daily Reminder Items section.</span>'; return; }
 
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+    const bodyItems = [
+        { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `📋 Daily Checklist — ${dateStr}`, "color": "Accent" },
+        { "type": "TextBlock", "text": "Please complete all daily tasks before end of day:", "wrap": true }
+    ];
+    dailyReminderItems.forEach(item => {
+        bodyItems.push({ "type": "TextBlock", "text": `☐  ${item.label}`, "wrap": true });
+        if (item.url) bodyItems.push({ "type": "TextBlock", "text": `👉 ${item.url}`, "wrap": true, "color": "Accent" });
+    });
 
     const message = {
         type: "message",
         attachments: [{
             contentType: "application/vnd.microsoft.card.adaptive",
             contentUrl: null,
-            content: {
-                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                "type": "AdaptiveCard",
-                "version": "1.4",
-                "body": [
-                    { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `📋 Daily Checklist — ${dateStr}`, "color": "Accent" },
-                    { "type": "TextBlock", "text": "Please complete all daily tasks before end of day:", "wrap": true },
-                    { "type": "TextBlock", "text": "☐  **Container Tracksheet Entry**", "wrap": true },
-                    { "type": "TextBlock", "text": "👉 [Open Tracksheet → customers.anyware-robotics.com](https://customers.anyware-robotics.com)", "wrap": true, "color": "Accent" },
-                    { "type": "TextBlock", "text": "☐  Camera Calibration & Validation Daily Check", "wrap": true },
-                    { "type": "TextBlock", "text": "☐  Lidar Calibration & Validation Daily Check", "wrap": true },
-                    { "type": "TextBlock", "text": "☐  **Database for Individual Container Unload Time**", "wrap": true },
-                    { "type": "TextBlock", "text": "👉 [Open Database → Confluence](https://anyware-robotics.atlassian.net/wiki/x/GYChLQ)", "wrap": true, "color": "Accent" }
-                ]
-            }
+            content: { "$schema": "http://adaptivecards.io/schemas/adaptive-card.json", "type": "AdaptiveCard", "version": "1.4", "body": bodyItems }
         }]
     };
 
@@ -1648,6 +1728,7 @@ function saveData() {
         localStorage.setItem('robots', JSON.stringify(robots));
         localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
         localStorage.setItem('customTasks', JSON.stringify(customTasks));
+        localStorage.setItem('dailyReminderItems', JSON.stringify(dailyReminderItems));
     } catch (e) {
         console.error('localStorage save error:', e);
         if (e.name === 'QuotaExceededError') {
@@ -1693,6 +1774,8 @@ async function loadData() {
         }
         if (savedLogs) maintenanceLogs = JSON.parse(savedLogs);
         if (savedTasks) customTasks = JSON.parse(savedTasks);
+        const savedDaily = localStorage.getItem('dailyReminderItems');
+        dailyReminderItems = (savedDaily && JSON.parse(savedDaily).length > 0) ? JSON.parse(savedDaily) : [...DEFAULT_DAILY_ITEMS];
 
         populateRobotSelects();
         populateOverviewFilters();

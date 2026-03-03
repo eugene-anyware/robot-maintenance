@@ -1335,3 +1335,167 @@ table td:last-child {
 .freq-name   { font-weight: 600; color: #333; }
 .freq-detail { font-size: 11px; color: #555; }
 .freq-dates  { font-size: 11px; color: #888; text-align: right; }
+
+/* ==========================================
+   DASHBOARD — Table View
+   ========================================== */
+.dash-table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.dash-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    font-size: 13px;
+}
+
+.dash-table thead tr {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.dash-table th {
+    padding: 12px 14px;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.dash-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.12s;
+}
+
+.dash-table tbody tr:hover { background: #f8f9ff; }
+.dash-table tbody tr:last-child { border-bottom: none; }
+
+.dash-robot-id {
+    font-weight: 700;
+    color: #2c3e50;
+    padding: 12px 14px;
+    white-space: nowrap;
+}
+
+.dash-customer,
+.dash-location,
+.dash-owner { padding: 12px 14px; color: #555; }
+
+.dash-cell {
+    padding: 10px 14px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.dash-cell-overdue  { background: #fdf0f0; }
+.dash-cell-due-soon { background: #fef9e7; }
+.dash-cell-ok       { background: #f7fbf7; }
+.dash-cell-undefined { background: #f5f5f5; }
+
+.dash-icon { display: block; font-size: 14px; line-height: 1; }
+.dash-date {
+    display: block;
+    font-size: 11px;
+    color: #666;
+    margin-top: 3px;
+}
+.dash-cell-overdue  .dash-date { color: #c0392b; font-weight: 700; }
+.dash-cell-due-soon .dash-date { color: #d68910; font-weight: 600; }
+
+/* ==========================================
+   DAILY REMINDER ITEMS — Editable List
+   ========================================== */
+.dr-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.dr-section-header h3 { margin: 0; }
+
+.btn-sm {
+    padding: 5px 14px;
+    font-size: 12px;
+    border-radius: 5px;
+}
+
+.dr-item {
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: #fafafa;
+}
+
+.dr-item-view {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.dr-item-content { flex: 1; min-width: 0; }
+
+.dr-item-label {
+    display: block;
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.dr-item-url {
+    display: block;
+    font-size: 12px;
+    color: #667eea;
+    margin-top: 3px;
+    word-break: break-all;
+    text-decoration: none;
+}
+
+.dr-item-url:hover { text-decoration: underline; }
+
+.dr-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.btn-icon {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.btn-icon:hover { background: #f0f0f0; }
+.btn-icon-delete:hover { background: #fdf0f0; border-color: #e74c3c; }
+
+.dr-item-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dr-edit-label,
+.dr-edit-url {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.dr-edit-label:focus,
+.dr-edit-url:focus { border-color: #667eea; outline: none; }
+
+.dr-edit-actions { display: flex; gap: 8px; }

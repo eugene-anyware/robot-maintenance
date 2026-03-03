@@ -177,27 +177,31 @@ ALTER PUBLICATION supabase_realtime ADD TABLE app_data;</pre>
                     <div id="githubStatus" class="webhook-status"></div>
                 </div>
 
-                <!-- REMINDER SCHEDULE -->
+                <!-- DAILY REMINDER ITEMS -->
                 <div class="setup-card">
-                    <h3>Step 3: Reminder Schedule</h3>
-                    <table class="schedule-summary-table">
+                    <div class="dr-section-header">
+                        <h3>📋 Daily Reminder Items</h3>
+                        <button class="btn-primary btn-sm" onclick="addDailyItem()">+ Add Item</button>
+                    </div>
+                    <p class="instruction-text">These items appear in every daily reminder. Anyone can add, edit, or delete them — changes are shared with everyone.</p>
+                    <div id="dailyReminderList"></div>
+                </div>
+
+                <!-- WEEKLY SCHEDULE NOTE -->
+                <div class="setup-card">
+                    <h3>🔧 Weekly Reminder Schedule</h3>
+                    <table class="schedule-summary-table" style="width:100%">
                         <thead>
-                            <tr><th>Frequency</th><th>Content</th><th>When</th></tr>
+                            <tr><th>Tasks</th><th>When</th></tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td><strong>Daily</strong></td>
-                                <td>Container Tracksheet Entry · Camera Cal &amp; Validation · Lidar Cal &amp; Validation</td>
-                                <td>Every day at 2:00 PM</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Weekly</strong></td>
-                                <td>Individual robot maintenance tasks (wipe down, dragons, gripper, IOLink, operator station)</td>
+                                <td>System wipe down · Dragons · Gripper · IOLink · Operator station</td>
                                 <td>Every Mon &amp; Thu at 2:00 PM</td>
                             </tr>
                         </tbody>
                     </table>
-                    <p class="instruction-text" style="margin-top:10px;">⚠️ Automatic scheduled sends require Power Automate. Use the buttons below to send manually, or see the Power Automate guide.</p>
+                    <p class="instruction-text" style="margin-top:10px;">Automatic reminders are sent by GitHub Actions on schedule. Use the buttons below to send manually.</p>
                 </div>
 
                 <!-- MANUAL SEND -->
