@@ -3,6 +3,8 @@ let robots = [];
 let maintenanceLogs = [];
 let customTasks = [];
 let selectedRobotId = null;
+let editingRobotId = null;
+let supabaseClient = null;
 
 // Frequency intervals in days
 const frequencyDays = {
@@ -63,8 +65,9 @@ const maintenanceSchedule = {
 };
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', () => {
-    loadData();
+document.addEventListener('DOMContentLoaded', async () => {
+    await initSupabase();
+    await loadData();
     initTabs();
     initModals();
     initForms();
@@ -76,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTaskChecklist();
     renderDashboard();
     loadWebhookUrl();
+    loadSupabaseCredentials();
 });
 
 // Live clock
@@ -96,6 +100,154 @@ function updateClock() {
     if (el) {
         el.innerHTML = `${dateStr} &bull; ${timeStr}`;
     }
+}
+
+// ==========================================
+// SUPABASE INTEGRATION
+// ==========================================
+
+async function initSupabase() {
+    const url = localStorage.getItem('supabaseUrl');
+    const key = localStorage.getItem('supabaseKey');
+    if (url && key && typeof supabase !== 'undefined') {
+        try {
+            supabaseClient = supabase.createClient(url, key);
+            const { error } = await supabaseClient.from('app_data').select('key').limit(1);
+            if (error) {
+                console.warn('Supabase connection failed:', error.message);
+                supabaseClient = null;
+            } else {
+                console.log('Supabase connected');
+            }
+        } catch (e) {
+            console.error('Supabase init error:', e);
+            supabaseClient = null;
+        }
+    }
+}
+
+function loadSupabaseCredentials() {
+    const urlInput = document.getElementById('supabaseUrl');
+    const keyInput = document.getElementById('supabaseKey');
+    const savedUrl = localStorage.getItem('supabaseUrl');
+    const savedKey = localStorage.getItem('supabaseKey');
+    if (urlInput && savedUrl) urlInput.value = savedUrl;
+    if (keyInput && savedKey) keyInput.value = savedKey;
+    updateSupabaseStatusBadge();
+}
+
+function updateSupabaseStatusBadge() {
+    const badge = document.getElementById('supabaseConnectionBadge');
+    if (!badge) return;
+    if (supabaseClient) {
+        badge.textContent = '🟢 Connected to shared database — all users see the same data';
+        badge.className = 'connection-badge badge-connected';
+    } else {
+        badge.textContent = '🔴 Using local storage only — data not shared between users';
+        badge.className = 'connection-badge badge-disconnected';
+    }
+}
+
+async function connectSupabase() {
+    const urlInput = document.getElementById('supabaseUrl');
+    const keyInput = document.getElementById('supabaseKey');
+    const statusEl = document.getElementById('supabaseStatus');
+    const url = urlInput.value.trim();
+    const key = keyInput.value.trim();
+
+    if (!url || !key) {
+        statusEl.innerHTML = '<span class="status-error">Please enter both the Project URL and anon key.</span>';
+        return;
+    }
+
+    statusEl.innerHTML = '<span class="status-pending">Connecting...</span>';
+
+    try {
+        const client = supabase.createClient(url, key);
+        const { error } = await client.from('app_data').select('key').limit(1);
+        if (error) {
+            statusEl.innerHTML = `<span class="status-error">Connection failed: ${error.message}. Make sure you ran the SQL setup.</span>`;
+            return;
+        }
+
+        localStorage.setItem('supabaseUrl', url);
+        localStorage.setItem('supabaseKey', key);
+        supabaseClient = client;
+        updateSupabaseStatusBadge();
+
+        statusEl.innerHTML = '<span class="status-pending">Connected! Loading shared data...</span>';
+
+        // Migrate local data to Supabase if Supabase is empty
+        const { data } = await supabaseClient.from('app_data').select('*');
+        const hasSupabaseData = data && data.some(r => r.key === 'robots' && r.value && r.value.length > 0);
+        if (!hasSupabaseData && robots.length > 0) {
+            if (confirm(`Found ${robots.length} robot(s) in local storage. Upload to shared database?`)) {
+                await saveDataToSupabase();
+            }
+        } else {
+            await loadDataFromSupabase();
+            renderRobots();
+            renderLogs();
+            renderSchedule();
+            renderDashboard();
+            populateRobotSelects();
+            populateOverviewFilters();
+        }
+
+        subscribeToRealtime();
+        statusEl.innerHTML = '<span class="status-success">Connected! All users will now share the same data in real time.</span>';
+    } catch (e) {
+        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+    }
+}
+
+async function loadDataFromSupabase() {
+    const { data, error } = await supabaseClient.from('app_data').select('*');
+    if (error) throw error;
+    const robotsRow = data.find(r => r.key === 'robots');
+    const logsRow = data.find(r => r.key === 'maintenance_logs');
+    const tasksRow = data.find(r => r.key === 'custom_tasks');
+    robots = robotsRow ? robotsRow.value : [];
+    maintenanceLogs = logsRow ? logsRow.value : [];
+    customTasks = tasksRow ? tasksRow.value : [];
+}
+
+async function saveDataToSupabase() {
+    if (!supabaseClient) return;
+    const { error } = await supabaseClient.from('app_data').upsert([
+        { key: 'robots', value: robots, updated_at: new Date().toISOString() },
+        { key: 'maintenance_logs', value: maintenanceLogs, updated_at: new Date().toISOString() },
+        { key: 'custom_tasks', value: customTasks, updated_at: new Date().toISOString() }
+    ]);
+    if (error) console.error('Supabase save error:', error);
+}
+
+function subscribeToRealtime() {
+    if (!supabaseClient) return;
+    supabaseClient
+        .channel('app_data_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_data' }, (payload) => {
+            if (!payload.new) return;
+            const { key, value } = payload.new;
+            if (key === 'robots') {
+                robots = value;
+                renderRobots();
+                renderDashboard();
+                populateRobotSelects();
+                populateOverviewFilters();
+            }
+            if (key === 'maintenance_logs') {
+                maintenanceLogs = value;
+                renderLogs();
+                renderDashboard();
+            }
+            if (key === 'custom_tasks') {
+                customTasks = value;
+                renderSchedule();
+                renderTaskChecklist();
+            }
+        })
+        .subscribe();
 }
 
 // Tab functionality
@@ -127,6 +279,7 @@ function initModals() {
     const closeBtns = document.querySelectorAll('.close');
 
     addRobotBtn.addEventListener('click', () => {
+        resetRobotModal();
         robotModal.classList.add('show');
     });
 
@@ -148,14 +301,23 @@ function initModals() {
             robotModal.classList.remove('show');
             logModal.classList.remove('show');
             taskModal.classList.remove('show');
+            resetRobotModal();
         });
     });
 
     window.addEventListener('click', (e) => {
-        if (e.target === robotModal) robotModal.classList.remove('show');
+        if (e.target === robotModal) { robotModal.classList.remove('show'); resetRobotModal(); }
         if (e.target === logModal) logModal.classList.remove('show');
         if (e.target === taskModal) taskModal.classList.remove('show');
     });
+}
+
+function resetRobotModal() {
+    editingRobotId = null;
+    document.getElementById('robotId').readOnly = false;
+    document.getElementById('robotModalTitle').textContent = 'Add New Robot';
+    document.querySelector('#robotForm button[type="submit"]').textContent = 'Add Robot';
+    document.getElementById('robotForm').reset();
 }
 
 // Show debug information
@@ -205,21 +367,38 @@ function initFilters() {
     document.getElementById('robotLogSelect').addEventListener('change', renderLogs);
 }
 
-// Add new robot
+// Add new robot or save edit
 function addRobot() {
-    const robot = {
-        id: document.getElementById('robotId').value,
-        customer: document.getElementById('robotCustomer').value,
-        location: document.getElementById('robotLocation').value,
-        application: document.getElementById('robotApplication').value,
-        owner: document.getElementById('robotOwner').value,
-        ownerEmail: document.getElementById('robotOwnerEmail').value,
-        installDate: document.getElementById('robotInstallDate').value,
-        trackingStartDate: new Date().toISOString().split('T')[0],
-        status: 'good'
-    };
+    if (editingRobotId) {
+        // Update existing robot
+        const idx = robots.findIndex(r => r.id === editingRobotId);
+        if (idx !== -1) {
+            robots[idx] = {
+                ...robots[idx],
+                customer: document.getElementById('robotCustomer').value,
+                location: document.getElementById('robotLocation').value,
+                application: document.getElementById('robotApplication').value,
+                owner: document.getElementById('robotOwner').value,
+                ownerEmail: document.getElementById('robotOwnerEmail').value,
+                installDate: document.getElementById('robotInstallDate').value,
+            };
+        }
+    } else {
+        // Add new robot
+        const robot = {
+            id: document.getElementById('robotId').value,
+            customer: document.getElementById('robotCustomer').value,
+            location: document.getElementById('robotLocation').value,
+            application: document.getElementById('robotApplication').value,
+            owner: document.getElementById('robotOwner').value,
+            ownerEmail: document.getElementById('robotOwnerEmail').value,
+            installDate: document.getElementById('robotInstallDate').value,
+            trackingStartDate: new Date().toISOString().split('T')[0],
+            status: 'good'
+        };
+        robots.push(robot);
+    }
 
-    robots.push(robot);
     saveData();
     renderRobots();
     populateRobotSelects();
@@ -227,7 +406,28 @@ function addRobot() {
     renderDashboard();
 
     document.getElementById('robotModal').classList.remove('show');
-    document.getElementById('robotForm').reset();
+    resetRobotModal();
+}
+
+// Open robot modal pre-filled for editing
+function editRobot(robotId) {
+    if (!robotId) return;
+    const robot = robots.find(r => r.id === robotId);
+    if (!robot) return;
+
+    editingRobotId = robotId;
+    document.getElementById('robotId').value = robot.id;
+    document.getElementById('robotId').readOnly = true;
+    document.getElementById('robotCustomer').value = robot.customer;
+    document.getElementById('robotLocation').value = robot.location;
+    document.getElementById('robotApplication').value = robot.application;
+    document.getElementById('robotOwner').value = robot.owner || '';
+    document.getElementById('robotOwnerEmail').value = robot.ownerEmail || '';
+    document.getElementById('robotInstallDate').value = robot.installDate || '';
+
+    document.getElementById('robotModalTitle').textContent = `Edit Robot: ${robotId}`;
+    document.querySelector('#robotForm button[type="submit"]').textContent = 'Save Changes';
+    document.getElementById('robotModal').classList.add('show');
 }
 
 // Add custom task
@@ -291,40 +491,48 @@ function addLog() {
     };
 
     if (photosInput.files.length > 0) {
-        console.log('Processing', photosInput.files.length, 'photos');
         const submitBtn = document.querySelector('#logForm button[type="submit"]');
         const originalText = submitBtn.textContent;
-        submitBtn.textContent = 'Processing photos...';
+        submitBtn.textContent = `Uploading ${photosInput.files.length} photo(s)...`;
         submitBtn.disabled = true;
 
-        let photosProcessed = 0;
-        Array.from(photosInput.files).forEach(file => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                log.photos.push(e.target.result);
-                photosProcessed++;
-                console.log('Photo processed:', photosProcessed, '/', photosInput.files.length);
-                submitBtn.textContent = `Processing ${photosProcessed}/${photosInput.files.length} photos...`;
-                if (photosProcessed === photosInput.files.length) {
-                    console.log('All photos processed, saving log');
-                    submitBtn.textContent = originalText;
-                    submitBtn.disabled = false;
-                    finalizeLog();
+        const uploadPhoto = async (file) => {
+            // Upload to Supabase Storage if connected
+            if (supabaseClient) {
+                const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                const { error } = await supabaseClient.storage
+                    .from('maintenance-photos')
+                    .upload(filename, file, { contentType: file.type });
+                if (!error) {
+                    const { data: { publicUrl } } = supabaseClient.storage
+                        .from('maintenance-photos')
+                        .getPublicUrl(filename);
+                    return publicUrl;
                 }
-            };
-            reader.onerror = (error) => {
-                console.error('Error reading photo:', error);
-                photosProcessed++;
-                if (photosProcessed === photosInput.files.length) {
-                    submitBtn.textContent = originalText;
-                    submitBtn.disabled = false;
-                    finalizeLog();
-                }
-            };
-            reader.readAsDataURL(file);
-        });
+            }
+            // Fallback: base64 in localStorage
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(file);
+            });
+        };
+
+        Promise.all(Array.from(photosInput.files).map(uploadPhoto))
+            .then(urls => {
+                log.photos = urls.filter(u => u !== null);
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                finalizeLog();
+            })
+            .catch(err => {
+                console.error('Photo upload error:', err);
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                finalizeLog();
+            });
     } else {
-        console.log('No photos, saving log directly');
         finalizeLog();
     }
 }
@@ -797,14 +1005,18 @@ function selectRobot(robotId) {
     renderRobots();
 }
 
-// Update delete robot button visibility
+// Update robot action buttons visibility
 function updateDeleteRobotButton() {
     const deleteBtn = document.getElementById('deleteRobotBtn');
+    const editBtn = document.getElementById('editRobotBtn');
     if (selectedRobotId) {
         deleteBtn.style.display = 'block';
         deleteBtn.textContent = `Delete "${selectedRobotId}"`;
+        editBtn.style.display = 'block';
+        editBtn.textContent = `Edit "${selectedRobotId}"`;
     } else {
         deleteBtn.style.display = 'none';
+        editBtn.style.display = 'none';
     }
 }
 
@@ -994,6 +1206,110 @@ function getWebhookUrl() {
     return localStorage.getItem('teamsWebhookUrl') || '';
 }
 
+// Core Teams send function — routes through Netlify proxy to avoid CORS
+function sendToTeams(webhookUrl, message, statusEl, successMsg) {
+    const proxyUrl = '/.netlify/functions/send-teams';
+
+    const doSend = (url, body) =>
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+    // Try Netlify proxy first (works when deployed to Netlify)
+    doSend(proxyUrl, { webhookUrl, message })
+        .then(res => {
+            if (res.ok) {
+                statusEl.innerHTML = `<span class="status-success">${successMsg}</span>`;
+            } else {
+                // Proxy returned error — fall back to direct
+                return doSend(webhookUrl, message).then(r => {
+                    if (r.ok) statusEl.innerHTML = `<span class="status-success">${successMsg}</span>`;
+                    else r.text().then(t => statusEl.innerHTML = `<span class="status-error">Failed (${r.status}): ${t}</span>`);
+                });
+            }
+        })
+        .catch(() => {
+            // Proxy not available (local dev) — try direct
+            doSend(webhookUrl, message)
+                .then(r => {
+                    if (r.ok) statusEl.innerHTML = `<span class="status-success">${successMsg} (sent directly)</span>`;
+                    else r.text().then(t => statusEl.innerHTML = `<span class="status-error">Failed (${r.status}): ${t}. Deploy to Netlify to fix CORS.</span>`);
+                })
+                .catch(err => {
+                    statusEl.innerHTML = `<span class="status-error">CORS error when running locally. Deploy to Netlify and it will work automatically. Error: ${err.message}</span>`;
+                });
+        });
+}
+
+function sendDailyReminder() {
+    const statusEl = document.getElementById('manualSendStatus');
+    const url = getWebhookUrl();
+    if (!url) { statusEl.innerHTML = '<span class="status-error">No webhook URL saved. Set it up in Step 2 above first.</span>'; return; }
+
+    const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+    const message = {
+        type: "message",
+        attachments: [{
+            contentType: "application/vnd.microsoft.card.adaptive",
+            contentUrl: null,
+            content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `📋 Daily Checklist — ${dateStr}`, "color": "Accent" },
+                    { "type": "TextBlock", "text": "Please complete all three daily tasks:", "wrap": true },
+                    { "type": "TextBlock", "text": "☐  **Container Tracksheet Entry**", "wrap": true },
+                    { "type": "TextBlock", "text": "👉 [Open Tracksheet → customers.anyware-robotics.com](https://customers.anyware-robotics.com)", "wrap": true, "color": "Accent" },
+                    { "type": "TextBlock", "text": "☐  Camera Calibration & Validation Daily Check", "wrap": true },
+                    { "type": "TextBlock", "text": "☐  Lidar Calibration & Validation Daily Check", "wrap": true }
+                ]
+            }
+        }]
+    };
+
+    statusEl.innerHTML = '<span class="status-pending">Sending daily reminder...</span>';
+    sendToTeams(url, message, statusEl, 'Daily reminder sent to Teams!');
+}
+
+function sendWeeklyReminder() {
+    const statusEl = document.getElementById('manualSendStatus');
+    const url = getWebhookUrl();
+    if (!url) { statusEl.innerHTML = '<span class="status-error">No webhook URL saved. Set it up in Step 2 above first.</span>'; return; }
+
+    const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const robotListText = robots.length > 0
+        ? robots.map(r => `• ${r.id} (${r.customer} — ${r.location})`).join('\n')
+        : '• No robots added yet';
+
+    const message = {
+        type: "message",
+        attachments: [{
+            contentType: "application/vnd.microsoft.card.adaptive",
+            contentUrl: null,
+            content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `🔧 Weekly Robot Maintenance — ${dateStr}`, "color": "Warning" },
+                    { "type": "TextBlock", "text": "Complete these tasks for **each robot** this week:", "wrap": true },
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Weekly Tasks:", "spacing": "Medium" },
+                    { "type": "TextBlock", "text": "☐  System wipe down\n☐  Dragons inspected\n☐  Gripper inspected\n☐  IOLink Inspected\n☐  Operator station cleaned", "wrap": true },
+                    { "type": "TextBlock", "weight": "Bolder", "text": `Robots (${robots.length} total):`, "spacing": "Medium" },
+                    { "type": "TextBlock", "text": robotListText, "wrap": true }
+                ]
+            }
+        }]
+    };
+
+    statusEl.innerHTML = '<span class="status-pending">Sending weekly reminder...</span>';
+    sendToTeams(url, message, statusEl, 'Weekly reminder sent to Teams!');
+}
+
 function saveAndTestWebhook() {
     const urlInput = document.getElementById('webhookUrl');
     const statusEl = document.getElementById('webhookStatus');
@@ -1042,29 +1358,7 @@ function saveAndTestWebhook() {
         }]
     };
 
-    fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testMessage)
-    })
-    .then(response => {
-        if (response.ok) {
-            statusEl.innerHTML = '<span class="status-success">Test message sent! Check your Teams channel.</span>';
-        } else {
-            response.text().then(text => {
-                statusEl.innerHTML = `<span class="status-error">Failed (${response.status}): ${text}</span>`;
-            });
-        }
-    })
-    .catch(error => {
-        statusEl.innerHTML = `<span class="status-error">Error: ${error.message}. This may be a CORS issue — see note below.</span>
-        <div class="cors-note">
-            <strong>If you see a CORS error:</strong> The webhook works, but browsers block direct calls.
-            Use the "Export Data" button instead and set up Power Automate to read the file and send messages.
-            Or test using this command in your terminal:<br>
-            <code>curl -H "Content-Type: application/json" -d '{"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","contentUrl":null,"content":{"type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","text":"Test from Robot Maintenance Tracker","weight":"Bolder"}]}}]}' "${url}"</code>
-        </div>`;
-    });
+    sendToTeams(url, testMessage, statusEl, 'Test message sent! Check your Teams channel.');
 }
 
 function sendAllAlertsToTeams() {
@@ -1131,23 +1425,7 @@ function sendAllAlertsToTeams() {
         }]
     };
 
-    fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message)
-    })
-    .then(response => {
-        if (response.ok) {
-            statusEl.innerHTML = `<span class="status-success">Sent ${criticalAlerts.length} alert(s) to Teams!</span>`;
-        } else {
-            response.text().then(text => {
-                statusEl.innerHTML = `<span class="status-error">Failed (${response.status}): ${text}</span>`;
-            });
-        }
-    })
-    .catch(error => {
-        statusEl.innerHTML = `<span class="status-error">Error: ${error.message}</span>`;
-    });
+    sendToTeams(url, message, statusEl, `Sent ${criticalAlerts.length} alert(s) to Teams!`);
 }
 
 // Load saved webhook URL on page load
@@ -1275,60 +1553,56 @@ function formatDate(dateString) {
 
 // Data persistence
 function saveData() {
+    // Always keep localStorage as backup
     try {
-        const robotsJson = JSON.stringify(robots);
-        const logsJson = JSON.stringify(maintenanceLogs);
-        const tasksJson = JSON.stringify(customTasks);
-
-        console.log('Saving data...', 'Robots:', robots.length, 'Logs:', maintenanceLogs.length, 'Tasks:', customTasks.length);
-
-        localStorage.setItem('robots', robotsJson);
-        localStorage.setItem('maintenanceLogs', logsJson);
-        localStorage.setItem('customTasks', tasksJson);
-
-        const totalSize = (robotsJson.length + logsJson.length + tasksJson.length) / 1024;
-        console.log('Data saved. Storage used:', totalSize.toFixed(2), 'KB');
+        localStorage.setItem('robots', JSON.stringify(robots));
+        localStorage.setItem('maintenanceLogs', JSON.stringify(maintenanceLogs));
+        localStorage.setItem('customTasks', JSON.stringify(customTasks));
     } catch (e) {
-        console.error('Error saving data:', e);
+        console.error('localStorage save error:', e);
         if (e.name === 'QuotaExceededError') {
-            alert('Storage quota exceeded! Try removing some photos or old log entries.');
+            alert('Local storage quota exceeded! Photos will be stored in Supabase only. Connect a Supabase database in the Teams tab.');
         }
+    }
+    // Save to Supabase if connected (shared database)
+    if (supabaseClient) {
+        saveDataToSupabase();
     }
 }
 
-function loadData() {
+async function loadData() {
+    // Try Supabase first if connected
+    if (supabaseClient) {
+        try {
+            await loadDataFromSupabase();
+            const todayStr = new Date().toISOString().split('T')[0];
+            let needsSave = false;
+            robots.forEach(r => { if (!r.trackingStartDate) { r.trackingStartDate = todayStr; needsSave = true; } });
+            if (needsSave) saveData();
+            subscribeToRealtime();
+            populateRobotSelects();
+            populateOverviewFilters();
+            return;
+        } catch (e) {
+            console.error('Supabase load error, falling back to localStorage:', e);
+        }
+    }
+
+    // Fallback to localStorage
     try {
         const savedRobots = localStorage.getItem('robots');
         const savedLogs = localStorage.getItem('maintenanceLogs');
         const savedTasks = localStorage.getItem('customTasks');
 
-        console.log('Loading data from localStorage...');
-
         if (savedRobots) {
             robots = JSON.parse(savedRobots);
-            // Backfill trackingStartDate for robots added before this feature
             const todayStr = new Date().toISOString().split('T')[0];
             let needsSave = false;
-            robots.forEach(r => {
-                if (!r.trackingStartDate) {
-                    r.trackingStartDate = todayStr;
-                    needsSave = true;
-                }
-            });
-            if (needsSave) {
-                localStorage.setItem('robots', JSON.stringify(robots));
-                console.log('Backfilled trackingStartDate for existing robots');
-            }
-            console.log('Loaded robots:', robots.length);
+            robots.forEach(r => { if (!r.trackingStartDate) { r.trackingStartDate = todayStr; needsSave = true; } });
+            if (needsSave) localStorage.setItem('robots', JSON.stringify(robots));
         }
-        if (savedLogs) {
-            maintenanceLogs = JSON.parse(savedLogs);
-            console.log('Loaded logs:', maintenanceLogs.length);
-        }
-        if (savedTasks) {
-            customTasks = JSON.parse(savedTasks);
-            console.log('Loaded tasks:', customTasks.length);
-        }
+        if (savedLogs) maintenanceLogs = JSON.parse(savedLogs);
+        if (savedTasks) customTasks = JSON.parse(savedTasks);
 
         populateRobotSelects();
         populateOverviewFilters();

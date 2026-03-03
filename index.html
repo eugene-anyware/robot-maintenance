@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Robot Maintenance Tracker</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="container">
@@ -39,10 +40,11 @@
                 <select id="overviewCustomerFilter">
                     <option value="">All Customers</option>
                 </select>
+                <button id="editRobotBtn" class="btn-edit-robot" onclick="editRobot(selectedRobotId)" style="display: none;">Edit Robot</button>
                 <button id="deleteRobotBtn" class="btn-delete-robot" onclick="deleteRobot()" style="display: none;">Delete Robot</button>
             </div>
             <h2>Robot Fleet</h2>
-            <p class="instruction-text">Click on a robot to select it, then use the "Delete" button to remove it.</p>
+            <p class="instruction-text">Click on a robot to select it, then use the "Edit" or "Delete" buttons.</p>
             <div id="robotList" class="robot-grid"></div>
         </div>
 
@@ -87,49 +89,107 @@
             <h2>Microsoft Teams Integration</h2>
 
             <div class="teams-setup">
-                <h3>Step 1: Create a Webhook in Teams</h3>
-                <ol class="setup-steps">
-                    <li>Open <strong>Microsoft Teams</strong></li>
-                    <li>Go to the channel where you want reminders</li>
-                    <li>Click the <strong>...</strong> (three dots) next to the channel name</li>
-                    <li>Select <strong>"Workflows"</strong></li>
-                    <li>Search for <strong>"Post to a channel when a webhook request is received"</strong></li>
-                    <li>Click it and follow the setup (name it "Maintenance Reminders")</li>
-                    <li>Copy the <strong>webhook URL</strong> it gives you</li>
-                    <li>Paste it below and click <strong>"Save & Test"</strong></li>
-                </ol>
 
-                <h3>Step 2: Paste Your Webhook URL</h3>
-                <div class="webhook-input-group">
-                    <input type="url" id="webhookUrl" placeholder="Paste your Teams webhook URL here..." value="">
-                    <button class="btn-primary" onclick="saveAndTestWebhook()">Save & Send Test Message</button>
+                <!-- SHARED DATABASE SETUP -->
+                <div class="setup-card">
+                    <h3>🗄️ Shared Database Setup (Required for shared data &amp; photo storage)</h3>
+                    <p class="instruction-text">Connect a free Supabase database so <strong>everyone sees the same data</strong> and photos are stored in the cloud.</p>
+                    <div id="supabaseConnectionBadge" class="connection-badge badge-disconnected">🔴 Using local storage only — data not shared</div>
+
+                    <details class="setup-steps-details">
+                        <summary><strong>How to set up Supabase (one-time, ~5 minutes)</strong></summary>
+                        <ol class="setup-steps">
+                            <li>Go to <strong>supabase.com</strong> and sign up for free</li>
+                            <li>Click <strong>"New project"</strong>, give it a name (e.g. "robot-maintenance"), set a password</li>
+                            <li>Once the project is created, go to <strong>SQL Editor</strong> and run this SQL:
+                                <pre class="sql-block">CREATE TABLE app_data (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE app_data ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON app_data FOR ALL USING (true) WITH CHECK (true);
+ALTER PUBLICATION supabase_realtime ADD TABLE app_data;</pre>
+                            </li>
+                            <li>Go to <strong>Storage</strong> → <strong>New bucket</strong> → name it <code>maintenance-photos</code> → check <strong>Public bucket</strong> → Create</li>
+                            <li>Go to <strong>Settings → API</strong> and copy your <strong>Project URL</strong> and <strong>anon public key</strong></li>
+                            <li>Paste them below and click <strong>Connect</strong></li>
+                        </ol>
+                    </details>
+
+                    <div class="webhook-input-group supabase-inputs">
+                        <input type="url" id="supabaseUrl" placeholder="Project URL (https://xyz.supabase.co)">
+                        <input type="text" id="supabaseKey" placeholder="anon public key">
+                        <button class="btn-primary" onclick="connectSupabase()">Connect</button>
+                    </div>
+                    <div id="supabaseStatus" class="webhook-status"></div>
                 </div>
-                <div id="webhookStatus" class="webhook-status"></div>
 
-                <h3>Step 3: Reminder Schedule</h3>
-                <div class="schedule-summary">
+                <!-- WEBHOOK SETUP -->
+                <div class="setup-card">
+                    <h3>Step 1: Create a Webhook in Teams</h3>
+                    <ol class="setup-steps">
+                        <li>Open <strong>Microsoft Teams</strong></li>
+                        <li>Go to the channel where you want reminders</li>
+                        <li>Click the <strong>...</strong> (three dots) next to the channel name</li>
+                        <li>Select <strong>"Workflows"</strong></li>
+                        <li>Search for <strong>"Post to a channel when a webhook request is received"</strong></li>
+                        <li>Click it, follow the setup, name it <strong>"Maintenance Reminders"</strong></li>
+                        <li>Copy the <strong>webhook URL</strong> it gives you</li>
+                        <li>Paste it below and click <strong>"Save &amp; Test"</strong></li>
+                    </ol>
+
+                    <h3>Step 2: Paste Your Webhook URL</h3>
+                    <div class="webhook-input-group">
+                        <input type="url" id="webhookUrl" placeholder="Paste your Teams webhook URL here...">
+                        <button class="btn-primary" onclick="saveAndTestWebhook()">Save &amp; Send Test Message</button>
+                    </div>
+                    <div id="webhookStatus" class="webhook-status"></div>
+                </div>
+
+                <!-- REMINDER SCHEDULE -->
+                <div class="setup-card">
+                    <h3>Step 3: Reminder Schedule</h3>
                     <table class="schedule-summary-table">
                         <thead>
-                            <tr>
-                                <th>Frequency</th>
-                                <th>When</th>
-                                <th>Time</th>
-                            </tr>
+                            <tr><th>Frequency</th><th>Content</th><th>When</th></tr>
                         </thead>
                         <tbody>
-                            <tr><td>Weekly</td><td>Every Monday & Thursday</td><td>2:00 PM</td></tr>
-                            <tr><td>Monthly</td><td>1st of each month</td><td>2:00 PM</td></tr>
-                            <tr><td>Quarterly</td><td>Jan 1, Apr 1, Jul 1, Oct 1</td><td>2:00 PM</td></tr>
-                            <tr><td>Semi-Annual</td><td>Jan 1, Jul 1</td><td>2:00 PM</td></tr>
-                            <tr><td>Annual</td><td>January 1</td><td>2:00 PM</td></tr>
+                            <tr>
+                                <td><strong>Daily</strong></td>
+                                <td>Container Tracksheet Entry · Camera Cal &amp; Validation · Lidar Cal &amp; Validation</td>
+                                <td>Every day at 2:00 PM</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Weekly</strong></td>
+                                <td>Individual robot maintenance tasks (wipe down, dragons, gripper, IOLink, operator station)</td>
+                                <td>Every Mon &amp; Thu at 2:00 PM</td>
+                            </tr>
                         </tbody>
                     </table>
+                    <p class="instruction-text" style="margin-top:10px;">⚠️ Automatic scheduled sends require Power Automate. Use the buttons below to send manually, or see the Power Automate guide.</p>
                 </div>
 
-                <h3>Send Manual Reminder Now</h3>
-                <p class="instruction-text">Send a reminder to Teams right now for all due/overdue maintenance:</p>
-                <button class="btn-primary" onclick="sendAllAlertsToTeams()">Send All Current Alerts to Teams</button>
-                <div id="manualSendStatus" class="webhook-status"></div>
+                <!-- MANUAL SEND -->
+                <div class="setup-card">
+                    <h3>Send Reminders Now</h3>
+                    <div class="reminder-buttons">
+                        <div class="reminder-btn-group">
+                            <button class="btn-primary" onclick="sendDailyReminder()">📋 Send Daily Reminder</button>
+                            <p class="btn-description">Container tracksheet · Camera cal · Lidar cal</p>
+                        </div>
+                        <div class="reminder-btn-group">
+                            <button class="btn-warning" onclick="sendWeeklyReminder()">🔧 Send Weekly Reminder</button>
+                            <p class="btn-description">Individual robot maintenance tasks</p>
+                        </div>
+                        <div class="reminder-btn-group">
+                            <button class="btn-secondary" onclick="sendAllAlertsToTeams()">🚨 Send Overdue Alerts</button>
+                            <p class="btn-description">Send all overdue / due-soon maintenance alerts</p>
+                        </div>
+                    </div>
+                    <div id="manualSendStatus" class="webhook-status"></div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -138,7 +198,7 @@
     <div id="robotModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2>Add New Robot</h2>
+            <h2 id="robotModalTitle">Add New Robot</h2>
             <form id="robotForm">
                 <label>Robot ID:</label>
                 <input type="text" id="robotId" required>

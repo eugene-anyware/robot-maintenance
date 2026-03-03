@@ -383,6 +383,39 @@ tr.alert-due-soon:hover {
     background: #c0392b;
 }
 
+.btn-edit-robot {
+    background: #f39c12;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.3s;
+    margin-left: auto;
+}
+
+.btn-edit-robot:hover {
+    background: #e67e22;
+}
+
+.btn-warning {
+    background: #f39c12;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.3s;
+}
+
+.btn-warning:hover {
+    background: #e67e22;
+}
+
 .robot-card .info {
     display: flex;
     flex-direction: column;
@@ -921,7 +954,109 @@ table td:last-child {
    ========================================== */
 
 .teams-setup {
-    max-width: 800px;
+    max-width: 860px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Individual setup cards */
+.setup-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 20px 24px;
+}
+
+.setup-card h3 {
+    color: #2c3e50;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #eee;
+    font-size: 16px;
+}
+
+/* Supabase connection badge */
+.connection-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+
+.badge-connected {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-disconnected {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* SQL block */
+.sql-block {
+    background: #2c3e50;
+    color: #2ecc71;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre;
+    overflow-x: auto;
+    margin: 8px 0 0;
+    line-height: 1.6;
+}
+
+/* Supabase URL + key inputs stacked */
+.supabase-inputs {
+    flex-direction: column;
+}
+
+.supabase-inputs input {
+    font-family: monospace;
+}
+
+.supabase-inputs .btn-primary {
+    align-self: flex-start;
+}
+
+/* Collapsible setup details */
+.setup-steps-details {
+    margin: 10px 0;
+    cursor: pointer;
+}
+
+.setup-steps-details summary {
+    color: #3498db;
+    user-select: none;
+    margin-bottom: 6px;
+}
+
+/* Reminder send buttons */
+.reminder-buttons {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.reminder-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.btn-description {
+    font-size: 12px;
+    color: #666;
+    margin: 0;
+}
+
+/* Schedule summary table (wider) */
+.schedule-summary-table {
+    width: 100%;
 }
 
 .teams-setup h3 {
