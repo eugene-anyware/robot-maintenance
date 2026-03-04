@@ -1499,3 +1499,60 @@ table td:last-child {
 .dr-edit-url:focus { border-color: #667eea; outline: none; }
 
 .dr-edit-actions { display: flex; gap: 8px; }
+
+/* ==========================================
+   ROBOT OWNER WEBHOOK TABLE
+   ========================================== */
+.owner-webhook-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.owner-webhook-table th {
+    text-align: left;
+    padding: 9px 12px;
+    background: #f5f5f5;
+    border-bottom: 2px solid #e0e0e0;
+    font-weight: 600;
+    color: #444;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.owner-webhook-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+}
+
+.owner-webhook-table tbody tr:hover { background: #fafbff; }
+.owner-webhook-table tbody tr:last-child td { border-bottom: none; }
+
+.owr-id {
+    font-weight: 700;
+    color: #2c3e50;
+    white-space: nowrap;
+}
+
+.owr-customer {
+    color: #888;
+    font-weight: 400;
+}
+
+.owr-owner { color: #555; white-space: nowrap; }
+
+.owr-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.owr-input:focus { border-color: #667eea; outline: none; }
+.owr-input:not(:placeholder-shown) { border-color: #27ae60; background: #f7fbf7; }
+
+.owr-actions { display: flex; gap: 6px; white-space: nowrap; }

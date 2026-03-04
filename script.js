@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTaskChecklist();
     renderDashboard();
     renderDailyReminderList();
+    renderOwnerWebhookList();
     loadWebhookUrl();
     loadSupabaseCredentials();
     loadGithubConfig();
@@ -246,6 +247,7 @@ function subscribeToRealtime() {
                 robots = value;
                 renderRobots();
                 renderDashboard();
+                renderOwnerWebhookList();
                 populateRobotSelects();
                 populateOverviewFilters();
             }
@@ -280,7 +282,7 @@ function initTabs() {
             });
             document.getElementById(tabName).classList.add('active');
             if (tabName === 'dashboard') renderDashboard();
-            if (tabName === 'teams') renderDailyReminderList();
+            if (tabName === 'teams') { renderDailyReminderList(); renderOwnerWebhookList(); }
         });
     });
 }
@@ -424,6 +426,7 @@ function addRobot() {
     populateRobotSelects();
     populateOverviewFilters();
     renderDashboard();
+    renderOwnerWebhookList();
 
     document.getElementById('robotModal').classList.remove('show');
     resetRobotModal();
@@ -1309,6 +1312,88 @@ function sendToTeams(webhookUrl, message, statusEl, successMsg) {
             if (statusEl) statusEl.innerHTML = `<span class="status-error">CORS error — add your GitHub repo &amp; token in the GitHub Integration section above. Error: ${err.message}</span>`;
         });
     }
+}
+
+// ==========================================
+// ROBOT OWNER WEBHOOK MANAGEMENT
+// ==========================================
+
+function renderOwnerWebhookList() {
+    const el = document.getElementById('ownerWebhookList');
+    if (!el) return;
+
+    if (robots.length === 0) {
+        el.innerHTML = '<p class="instruction-text">No robots added yet. Add robots in the Overview tab first.</p>';
+        return;
+    }
+
+    el.innerHTML = `
+        <table class="owner-webhook-table">
+            <thead>
+                <tr>
+                    <th>Robot ID</th>
+                    <th>Owner</th>
+                    <th>Teams Webhook URL</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${robots.map(r => `
+                <tr>
+                    <td class="owr-id">${r.id}<br><small class="owr-customer">${r.customer}</small></td>
+                    <td class="owr-owner">${r.owner || '—'}</td>
+                    <td><input type="url" class="owr-input" id="owr-url-${r.id}"
+                        value="${r.ownerWebhookUrl || ''}"
+                        placeholder="Paste Teams webhook URL..."></td>
+                    <td class="owr-actions">
+                        <button class="btn-primary btn-sm" onclick="saveOwnerWebhook('${r.id}')">Save</button>
+                        <button class="btn-secondary btn-sm" onclick="testOwnerWebhook('${r.id}')">Test</button>
+                    </td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+}
+
+function saveOwnerWebhook(robotId) {
+    const input = document.getElementById(`owr-url-${robotId}`);
+    if (!input) return;
+    const url = input.value.trim();
+    const idx = robots.findIndex(r => r.id === robotId);
+    if (idx === -1) return;
+    robots[idx].ownerWebhookUrl = url;
+    saveData();
+    const statusEl = document.getElementById('ownerWebhookStatus');
+    statusEl.innerHTML = `<span class="status-success">✅ Saved webhook for ${robotId}${url ? '' : ' (cleared)'}</span>`;
+    setTimeout(() => { statusEl.innerHTML = ''; }, 3000);
+}
+
+function testOwnerWebhook(robotId) {
+    const input = document.getElementById(`owr-url-${robotId}`);
+    const statusEl = document.getElementById('ownerWebhookStatus');
+    const url = input ? input.value.trim() : '';
+    if (!url) {
+        statusEl.innerHTML = `<span class="status-error">Enter a webhook URL for ${robotId} and click Save first.</span>`;
+        return;
+    }
+    const robot = robots.find(r => r.id === robotId);
+    const testMsg = {
+        type: "message",
+        attachments: [{
+            contentType: "application/vnd.microsoft.card.adaptive",
+            contentUrl: null,
+            content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": `✅ Test Message — ${robotId}`, "color": "Good" },
+                    { "type": "TextBlock", "text": `Hi **${robot ? (robot.owner || robotId) : robotId}** — your robot maintenance reminders are connected! This channel will receive weekly maintenance tasks for **${robotId}**.`, "wrap": true }
+                ]
+            }
+        }]
+    };
+    statusEl.innerHTML = `<span class="status-pending">Sending test to ${robotId} owner channel...</span>`;
+    sendToTeams(url, testMsg, statusEl, `✅ Test sent to ${robotId} owner channel!`);
 }
 
 // ==========================================
