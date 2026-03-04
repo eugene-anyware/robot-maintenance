@@ -7,6 +7,9 @@ on:
       message_b64:
         description: 'Base64-encoded Teams message JSON'
         required: true
+      webhook_url_b64:
+        description: 'Base64-encoded target webhook URL (optional — falls back to secret)'
+        required: false
 
 jobs:
   send:
@@ -17,6 +20,11 @@ jobs:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: |
           MESSAGE=$(echo "${{ github.event.inputs.message_b64 }}" | base64 -d)
-          curl -s -o /dev/null -w "%{http_code}" -X POST "$TEAMS_WEBHOOK_URL" \
+          if [ -n "${{ github.event.inputs.webhook_url_b64 }}" ]; then
+            TARGET_URL=$(echo "${{ github.event.inputs.webhook_url_b64 }}" | base64 -d)
+          else
+            TARGET_URL="$TEAMS_WEBHOOK_URL"
+          fi
+          curl -s -o /dev/null -w "%{http_code}" -X POST "$TARGET_URL" \
             -H "Content-Type: application/json" \
             -d "$MESSAGE"

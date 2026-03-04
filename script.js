@@ -1264,10 +1264,11 @@ function sendToTeams(webhookUrl, message, statusEl, successMsg) {
     const githubToken = localStorage.getItem('githubToken');
 
     if (githubRepo && githubToken) {
-        // Encode message as base64 so it passes safely through GitHub's workflow_dispatch input
+        // Encode message and target URL as base64 so they pass safely through GitHub's workflow_dispatch inputs
         const msgB64 = btoa(unescape(encodeURIComponent(JSON.stringify(message))));
+        const urlB64 = btoa(unescape(encodeURIComponent(webhookUrl)));
 
-        statusEl.innerHTML = '<span class="status-pending">Triggering GitHub Action...</span>';
+        if (statusEl) statusEl.innerHTML = '<span class="status-pending">Triggering GitHub Action...</span>';
 
         fetch(`https://api.github.com/repos/${githubRepo}/actions/workflows/send-teams-now.yml/dispatches`, {
             method: 'POST',
@@ -1276,9 +1277,10 @@ function sendToTeams(webhookUrl, message, statusEl, successMsg) {
                 'Accept': 'application/vnd.github.v3+json',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ ref: 'main', inputs: { message_b64: msgB64 } })
+            body: JSON.stringify({ ref: 'main', inputs: { message_b64: msgB64, webhook_url_b64: urlB64 } })
         })
         .then(res => {
+            if (!statusEl) return;
             if (res.status === 204) {
                 statusEl.innerHTML = `<span class="status-success">${successMsg} — sent via GitHub Actions. Check Teams in about 30 seconds.</span>`;
             } else {
@@ -1288,7 +1290,7 @@ function sendToTeams(webhookUrl, message, statusEl, successMsg) {
             }
         })
         .catch(err => {
-            statusEl.innerHTML = `<span class="status-error">Error: ${err.message}</span>`;
+            if (statusEl) statusEl.innerHTML = `<span class="status-error">Error: ${err.message}</span>`;
         });
 
     } else {
@@ -1299,11 +1301,12 @@ function sendToTeams(webhookUrl, message, statusEl, successMsg) {
             body: JSON.stringify(message)
         })
         .then(r => {
+            if (!statusEl) return;
             if (r.ok) statusEl.innerHTML = `<span class="status-success">${successMsg}</span>`;
             else r.text().then(t => statusEl.innerHTML = `<span class="status-error">Failed (${r.status}): ${t}</span>`);
         })
         .catch(err => {
-            statusEl.innerHTML = `<span class="status-error">CORS error — add your GitHub repo &amp; token in the GitHub Integration section above. Error: ${err.message}</span>`;
+            if (statusEl) statusEl.innerHTML = `<span class="status-error">CORS error — add your GitHub repo &amp; token in the GitHub Integration section above. Error: ${err.message}</span>`;
         });
     }
 }
