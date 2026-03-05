@@ -31,18 +31,20 @@
 
         <!-- Overview Tab -->
         <div id="overview" class="tab-content active">
-            <div id="fleetSummaryBar"></div>
-            <div class="overview-toolbar">
-                <div class="overview-filters">
-                    <select id="overviewRobotFilter" onchange="renderRobots()" class="ov-select">
-                        <option value="">All Robots</option>
-                    </select>
-                    <select id="overviewCustomerFilter" onchange="renderRobots()" class="ov-select">
-                        <option value="">All Customers</option>
-                    </select>
-                </div>
-                <button id="addRobotBtnOverview" class="btn-primary" onclick="document.getElementById('addRobotBtn').click()">+ Add Robot</button>
+            <div class="filter-bar">
+                <label>Filter by Robot:</label>
+                <select id="overviewRobotFilter">
+                    <option value="">All Robots</option>
+                </select>
+                <label>Filter by Customer:</label>
+                <select id="overviewCustomerFilter">
+                    <option value="">All Customers</option>
+                </select>
+                <button id="editRobotBtn" class="btn-edit-robot" onclick="editRobot(selectedRobotId)" style="display: none;">Edit Robot</button>
+                <button id="deleteRobotBtn" class="btn-delete-robot" onclick="deleteRobot()" style="display: none;">Delete Robot</button>
             </div>
+            <h2>Robot Fleet</h2>
+            <p class="instruction-text">Click on a robot to select it, then use the "Edit" or "Delete" buttons.</p>
             <div id="robotList" class="robot-grid"></div>
         </div>
 

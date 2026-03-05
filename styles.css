@@ -322,227 +322,15 @@ tr.alert-due-soon:hover {
 }
 
 /* ==========================================
-   OVERVIEW — Fleet Summary Bar
-   ========================================== */
-
-.fleet-summary-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-}
-
-.fsb-total {
-    font-size: 18px;
-    font-weight: 700;
-    color: #2c3e50;
-    margin-right: 4px;
-}
-
-.fsb-divider { color: #ccc; }
-
-.fsb-chip {
-    font-size: 13px;
-    font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 20px;
-}
-
-.fsb-overdue  { background: #fdf0f0; color: #c0392b; }
-.fsb-due      { background: #fef9e7; color: #9a6400; }
-.fsb-ok       { background: #eafaf1; color: #1e8449; }
-
-/* ==========================================
-   OVERVIEW — Toolbar
-   ========================================== */
-
-.overview-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.overview-filters {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.ov-select {
-    padding: 8px 14px;
-    border: 1.5px solid #e0e0e0;
-    border-radius: 20px;
-    font-size: 13px;
-    font-family: inherit;
-    background: white;
-    color: #444;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 30px;
-}
-
-.ov-select:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-/* ==========================================
-   ROBOT GRID — New Card Design
+   ROBOT GRID
    ========================================== */
 
 .robot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
 }
 
-/* New card */
-.rc {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    border: 1px solid #eee;
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.15s, box-shadow 0.15s;
-}
-
-.rc:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.11);
-}
-
-.rc-stripe {
-    height: 5px;
-    width: 100%;
-}
-
-.rc-stripe-good    { background: linear-gradient(90deg, #27ae60, #2ecc71); }
-.rc-stripe-due     { background: linear-gradient(90deg, #f39c12, #f1c40f); }
-.rc-stripe-overdue { background: linear-gradient(90deg, #e74c3c, #c0392b); }
-
-.rc-body {
-    padding: 18px 18px 12px;
-    flex: 1;
-}
-
-.rc-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 2px;
-}
-
-.rc-id {
-    font-size: 22px;
-    font-weight: 800;
-    color: #1a1a2e;
-    letter-spacing: -0.5px;
-    line-height: 1;
-}
-
-.rc-badge {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 3px 9px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-
-.rc-badge-good    { background: #eafaf1; color: #1e8449; }
-.rc-badge-due     { background: #fef9e7; color: #9a6400; }
-.rc-badge-overdue { background: #fdedec; color: #c0392b; }
-
-.rc-company {
-    font-size: 14px;
-    color: #888;
-    font-weight: 500;
-    margin-bottom: 14px;
-}
-
-.rc-details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 14px;
-}
-
-.rc-detail {
-    font-size: 13px;
-    color: #555;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-
-.rc-di { font-size: 13px; flex-shrink: 0; }
-
-.rc-days {
-    color: #aaa;
-    font-size: 11px;
-}
-
-.rc-next-due {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 10px;
-    border-radius: 6px;
-    margin-top: 4px;
-}
-
-.rc-next-overdue  { background: #fdedec; color: #c0392b; }
-.rc-next-due-soon { background: #fef9e7; color: #9a6400; }
-.rc-next-ok       { background: #eafaf1; color: #1e8449; }
-
-.rc-actions {
-    padding: 10px 14px;
-    border-top: 1px solid #f0f0f0;
-    display: flex;
-    gap: 8px;
-}
-
-.rc-btn-edit {
-    flex: 1;
-    padding: 8px;
-    background: #f0f4ff;
-    color: #3d5af1;
-    border: 1.5px solid #d0d9ff;
-    border-radius: 7px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: background 0.12s;
-}
-
-.rc-btn-edit:hover { background: #dce4ff; }
-
-.rc-btn-delete {
-    flex: 1;
-    padding: 8px;
-    background: #fff0f0;
-    color: #e74c3c;
-    border: 1.5px solid #ffd0d0;
-    border-radius: 7px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: background 0.12s;
-}
-
-.rc-btn-delete:hover { background: #ffdede; }
-
-/* Legacy robot-card kept for any remaining references */
 .robot-card {
     background: #f8f9fa;
     border: 3px solid #e9ecef;
@@ -551,6 +339,18 @@ tr.alert-due-soon:hover {
     cursor: pointer;
     transition: all 0.3s;
     position: relative;
+}
+
+.robot-card:hover {
+    border-color: #3498db;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.robot-card.selected {
+    border-color: #e74c3c;
+    background: #fff5f5;
+    box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.2);
 }
 
 .robot-card h3 {

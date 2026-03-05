@@ -879,50 +879,21 @@ function renderDashboard() {
 // RENDER FUNCTIONS
 // ==========================================
 
-function getRobotNextDueInfo(robot) {
-    const freqs = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
-    const freqLabels = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', semiAnnual: 'Semi-Annual', annual: 'Annual' };
-    let mostUrgent = null;
-    freqs.forEach(freq => {
-        const lastMaint = getLastMaintenanceDateForFrequency(robot.id, freq);
-        const nextDue = getNextDueDate(freq, lastMaint, robot.trackingStartDate);
-        const si = getMaintenanceStatus(nextDue);
-        if (!mostUrgent || si.status === 'overdue' || (si.status === 'due-soon' && mostUrgent.siStatus === 'ok')) {
-            mostUrgent = { freq, label: freqLabels[freq], nextDue, siStatus: si.status, siLabel: si.label };
-        }
-    });
-    return mostUrgent;
-}
-
 function renderRobots() {
     const robotList = document.getElementById('robotList');
     const robotFilter = document.getElementById('overviewRobotFilter').value;
     const customerFilter = document.getElementById('overviewCustomerFilter').value;
 
     if (robots.length === 0) {
-        document.getElementById('fleetSummaryBar').innerHTML = '';
         robotList.innerHTML = `
             <div class="empty-state">
                 <h3>No robots added yet</h3>
-                <p>Click "+ Add Robot" to get started</p>
+                <p>Click "Add Robot" to get started</p>
             </div>`;
         return;
     }
 
     updateRobotStatuses();
-
-    // Fleet summary bar
-    const nOverdue = robots.filter(r => r.status === 'overdue').length;
-    const nDue     = robots.filter(r => r.status === 'due').length;
-    const nOk      = robots.filter(r => r.status === 'good').length;
-    document.getElementById('fleetSummaryBar').innerHTML = `
-        <div class="fleet-summary-bar">
-            <span class="fsb-total">${robots.length} Robot${robots.length !== 1 ? 's' : ''}</span>
-            <span class="fsb-divider">·</span>
-            ${nOverdue > 0 ? `<span class="fsb-chip fsb-overdue">🔴 ${nOverdue} Overdue</span>` : ''}
-            ${nDue > 0     ? `<span class="fsb-chip fsb-due">🟡 ${nDue} Due Soon</span>` : ''}
-            <span class="fsb-chip fsb-ok">🟢 ${nOk} On Track</span>
-        </div>`;
 
     let filteredRobots = robots;
     if (robotFilter) filteredRobots = filteredRobots.filter(r => r.id === robotFilter);
@@ -938,42 +909,45 @@ function renderRobots() {
     }
 
     robotList.innerHTML = filteredRobots.map(robot => {
-        const statusLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
-        const daysActive = robot.installDate
-            ? Math.floor((new Date() - new Date(robot.installDate)) / (1000*60*60*24))
-            : null;
-        const nextDue = getRobotNextDueInfo(robot);
-        const nextDueText = nextDue
-            ? (nextDue.siStatus === 'overdue'
-                ? `⚠️ ${nextDue.label} overdue`
-                : nextDue.siStatus === 'due-soon'
-                    ? `🕐 ${nextDue.label} due soon`
-                    : `✅ Next: ${nextDue.label} on ${nextDue.nextDue ? nextDue.nextDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}`)
-            : '';
+        const statusLabel = robot.status === 'good' ? 'Up to date' : robot.status === 'due' ? 'Maintenance Due Soon' : 'Maintenance Overdue';
+        const daysSinceDeployment = robot.installDate ? Math.floor((new Date() - new Date(robot.installDate)) / (1000*60*60*24)) : '—';
 
         return `
-        <div class="rc rc-border-${robot.status}">
-            <div class="rc-stripe rc-stripe-${robot.status}"></div>
-            <div class="rc-body">
-                <div class="rc-top">
-                    <div class="rc-id">${robot.id}</div>
-                    <span class="rc-badge rc-badge-${robot.status}">${statusLabel}</span>
+        <div class="robot-card ${selectedRobotId === robot.id ? 'selected' : ''}" onclick="selectRobot('${robot.id}')">
+            <h3>${robot.id}</h3>
+            <div class="info">
+                <div class="info-row">
+                    <span class="label">Customer:</span>
+                    <span>${robot.customer}</span>
                 </div>
-                <div class="rc-company">${robot.customer}</div>
-                <div class="rc-details">
-                    <div class="rc-detail"><span class="rc-di">📍</span>${robot.location}</div>
-                    <div class="rc-detail"><span class="rc-di">👤</span>${robot.owner || '—'}</div>
-                    ${robot.application ? `<div class="rc-detail"><span class="rc-di">⚙️</span>${robot.application}</div>` : ''}
-                    <div class="rc-detail"><span class="rc-di">📅</span>${robot.installDate ? formatDate(robot.installDate) : 'No install date'}${daysActive !== null ? ` <span class="rc-days">(${daysActive}d)</span>` : ''}</div>
+                <div class="info-row">
+                    <span class="label">Location:</span>
+                    <span>${robot.location}</span>
                 </div>
-                ${nextDueText ? `<div class="rc-next-due rc-next-${nextDue.siStatus}">${nextDueText}</div>` : ''}
+                <div class="info-row">
+                    <span class="label">Application:</span>
+                    <span>${robot.application}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Owner:</span>
+                    <span>${robot.owner || '—'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Deployed:</span>
+                    <span>${robot.installDate ? formatDate(robot.installDate) : '—'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Days Active:</span>
+                    <span>${daysSinceDeployment}</span>
+                </div>
             </div>
-            <div class="rc-actions">
-                <button class="rc-btn-edit" onclick="editRobot('${robot.id}')">✏️ Edit</button>
-                <button class="rc-btn-delete" onclick="deleteRobot('${robot.id}')">🗑️ Delete</button>
-            </div>
-        </div>`;
-    }).join('');
+            <span class="status-badge status-${robot.status}">
+                ${statusLabel}
+            </span>
+        </div>
+    `}).join('');
+
+    updateDeleteRobotButton();
 }
 
 // Render maintenance schedule
@@ -1056,16 +1030,14 @@ function updateDeleteRobotButton() {
     }
 }
 
-// Delete robot — accepts direct id (from card button) or falls back to selectedRobotId
-function deleteRobot(robotId) {
-    const id = robotId || selectedRobotId;
-    if (!id) return;
-    const robot = robots.find(r => r.id === id);
+// Delete robot
+function deleteRobot() {
+    if (!selectedRobotId) return;
+    const robot = robots.find(r => r.id === selectedRobotId);
     if (!robot) return;
-    selectedRobotId = id; // keep in sync for existing code paths
 
-    const associatedLogs = maintenanceLogs.filter(log => log.robotId === id);
-    let confirmMessage = `Are you sure you want to delete robot "${id}"?`;
+    const associatedLogs = maintenanceLogs.filter(log => log.robotId === selectedRobotId);
+    let confirmMessage = `Are you sure you want to delete robot "${selectedRobotId}"?`;
     if (associatedLogs.length > 0) {
         confirmMessage += `\n\nThis robot has ${associatedLogs.length} maintenance log(s) that will also be deleted.`;
     }
