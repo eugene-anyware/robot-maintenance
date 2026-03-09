@@ -1694,64 +1694,130 @@ function loadWebhookUrl() {
 }
 
 // ==========================================
-// EXPORT FOR POWER AUTOMATE
+// EXPORT TO EXCEL (.xlsx)
 // ==========================================
 
-function exportData() {
-    const alerts = getAllMaintenanceAlerts();
+function exportToExcel() {
+    if (typeof XLSX === 'undefined') {
+        alert('Excel library not loaded yet. Please wait a moment and try again.');
+        return;
+    }
 
-    const exportPayload = {
-        exportDate: new Date().toISOString(),
-        reminderSchedule: {
-            reminderTime: "14:00",
-            weekly: { days: ["Monday", "Thursday"], note: "Every Monday and Thursday at 2 PM" },
-            monthly: { days: ["1st of each month"], note: "1st of every month at 2 PM" },
-            quarterly: { days: ["Jan 1", "Apr 1", "Jul 1", "Oct 1"], note: "1st of quarter at 2 PM" },
-            semiAnnual: { days: ["Jan 1", "Jul 1"], note: "1st of Jan and Jul at 2 PM" },
-            annual: { days: ["Jan 1"], note: "January 1st at 2 PM" }
-        },
-        robots: robots.map(r => ({
-            id: r.id,
-            customer: r.customer,
-            location: r.location,
-            application: r.application,
-            owner: r.owner || '',
-            ownerEmail: r.ownerEmail || '',
-            deploymentDate: r.installDate,
-            status: r.status
-        })),
-        maintenanceAlerts: alerts.map(a => ({
-            robotId: a.robotId,
-            customer: a.customer,
-            owner: a.owner,
-            ownerEmail: a.ownerEmail,
-            frequency: a.frequencyLabel,
-            lastMaintenance: a.lastMaintenance || 'Never',
-            nextDueDate: a.nextDue.toISOString().split('T')[0],
-            status: a.statusInfo.status,
-            statusLabel: a.statusInfo.label,
-            daysUntilDue: a.statusInfo.daysUntil,
-            tasks: a.tasks
-        })),
-        recentLogs: maintenanceLogs.slice(-50).map(log => ({
-            robotId: log.robotId,
-            date: log.date,
-            tasks: log.tasks,
-            notes: log.notes,
-            photoCount: (log.photos || []).length
-        }))
-    };
+    updateRobotStatuses();
 
-    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `maintenance-export-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const wb = XLSX.utils.book_new();
+    const freqKeys  = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
+    const freqNames = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', semiAnnual: 'Semi-Annual', annual: 'Annual' };
+
+    // ── Sheet 1: Fleet Status ─────────────────────────────────────
+    const fleetHeaders = [
+        'Robot ID', 'Customer', 'Location', 'Application', 'Owner', 'Owner Email',
+        'Install Date', 'Days Active', 'Overall Status',
+        ...freqKeys.flatMap(f => [
+            `${freqNames[f]} — Last Done`,
+            `${freqNames[f]} — Next Due`,
+            `${freqNames[f]} — Status`
+        ])
+    ];
+
+    const fleetRows = robots.map(robot => {
+        const daysActive = robot.installDate
+            ? Math.floor((new Date() - new Date(robot.installDate)) / (1000 * 60 * 60 * 24))
+            : '';
+        const overallLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
+
+        const row = [
+            robot.id, robot.customer, robot.location, robot.application || '',
+            robot.owner || '', robot.ownerEmail || '',
+            robot.installDate || '', daysActive, overallLabel
+        ];
+
+        freqKeys.forEach(freq => {
+            const last    = getLastMaintenanceDateForFrequency(robot.id, freq);
+            const nextDue = getNextDueDate(freq, last, robot.trackingStartDate);
+            const si      = getMaintenanceStatus(nextDue);
+            row.push(last    ? new Date(last).toLocaleDateString('en-US') : 'Never');
+            row.push(nextDue ? nextDue.toLocaleDateString('en-US')        : '—');
+            row.push(si.label);
+        });
+
+        return row;
+    });
+
+    const wsFleet = XLSX.utils.aoa_to_sheet([fleetHeaders, ...fleetRows]);
+    wsFleet['!cols'] = [
+        {wch:12},{wch:18},{wch:16},{wch:16},{wch:16},{wch:24},
+        {wch:13},{wch:12},{wch:13},
+        ...freqKeys.flatMap(() => [{wch:16},{wch:16},{wch:14}])
+    ];
+    XLSX.utils.book_append_sheet(wb, wsFleet, 'Fleet Status');
+
+    // ── Sheet 2: Maintenance Log ──────────────────────────────────
+    const logHeaders = ['Date', 'Robot ID', 'Customer', 'Location', 'Owner', 'Tasks Completed', 'Notes', 'Photos'];
+    const logRows = [...maintenanceLogs]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .map(log => {
+            const robot = robots.find(r => r.id === log.robotId);
+            const tasks = Array.isArray(log.tasks) ? log.tasks.join('; ') : (log.tasks || '');
+            return [
+                log.date,
+                log.robotId,
+                robot ? robot.customer  : '',
+                robot ? robot.location  : '',
+                robot ? (robot.owner || '') : '',
+                tasks,
+                log.notes || '',
+                log.photos && log.photos.length > 0 ? `${log.photos.length} photo(s)` : ''
+            ];
+        });
+
+    const wsLog = XLSX.utils.aoa_to_sheet([logHeaders, ...logRows]);
+    wsLog['!cols'] = [{wch:12},{wch:12},{wch:18},{wch:16},{wch:16},{wch:60},{wch:40},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsLog, 'Maintenance Log');
+
+    // ── Sheet 3: Daily Checks ─────────────────────────────────────
+    const dailyHeaders = ['#', 'Daily Check Item', 'Link'];
+    const dailyRows = dailyReminderItems.map((item, i) => [i + 1, item.label, item.url || '']);
+    const wsDaily = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
+    wsDaily['!cols'] = [{wch:4},{wch:55},{wch:65}];
+    XLSX.utils.book_append_sheet(wb, wsDaily, 'Daily Checks');
+
+    // ── Sheets 4-8: Task reference lists per frequency ────────────
+    freqKeys.forEach(freq => {
+        const taskHeaders = ['Task', 'Part Number', 'Notes'];
+        const builtIn = (maintenanceSchedule[freq] || []).map(t => [t.task, t.partNumber || '', t.note || '']);
+        const custom  = customTasks.filter(t => t.frequency === freq).map(t => [`${t.task} (custom)`, t.partNumber || '', t.note || '']);
+        const ws = XLSX.utils.aoa_to_sheet([taskHeaders, ...builtIn, ...custom]);
+        ws['!cols'] = [{wch:55},{wch:16},{wch:45}];
+        XLSX.utils.book_append_sheet(wb, ws, `${freqNames[freq]} Tasks`);
+    });
+
+    // ── Sheet 9: Per-robot check tracker (pivot style) ───────────
+    // Rows = robots, columns = one per log entry (most recent 20)
+    const recentLogs = [...maintenanceLogs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 40);
+    const uniqueDates = [...new Set(recentLogs.map(l => l.date))].sort((a,b) => new Date(b)-new Date(a)).slice(0, 20);
+
+    const trackerHeaders = ['Robot ID', 'Customer', 'Owner', ...uniqueDates];
+    const trackerRows = robots.map(robot => {
+        const row = [robot.id, robot.customer, robot.owner || ''];
+        uniqueDates.forEach(date => {
+            const log = maintenanceLogs.find(l => l.robotId === robot.id && l.date === date);
+            row.push(log ? '✓' : '');
+        });
+        return row;
+    });
+
+    const wsTracker = XLSX.utils.aoa_to_sheet([trackerHeaders, ...trackerRows]);
+    wsTracker['!cols'] = [{wch:12},{wch:18},{wch:16},...uniqueDates.map(()=>({wch:12}))];
+    XLSX.utils.book_append_sheet(wb, wsTracker, 'Check Tracker');
+
+    // ── Download ──────────────────────────────────────────────────
+    const fileName = `Robot-Maintenance-${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
 }
+
+// Keep old exportData as alias in case anything references it
+function exportData() { exportToExcel(); }
 
 // ==========================================
 // UTILITY FUNCTIONS

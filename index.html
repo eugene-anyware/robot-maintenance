@@ -6,6 +6,7 @@
     <title>Robot Maintenance Tracker</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -15,7 +16,7 @@
                 <div id="currentDateTime" class="current-datetime"></div>
             </div>
             <div class="header-buttons">
-                <button id="exportBtn" class="btn-secondary" onclick="exportData()">Export Data</button>
+                <button id="exportBtn" class="btn-secondary" onclick="exportToExcel()">⬇ Export Excel</button>
                 <button id="debugBtn" class="btn-secondary">Debug</button>
                 <button id="addRobotBtn" class="btn-primary">+ Add Robot</button>
             </div>
