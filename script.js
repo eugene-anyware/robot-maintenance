@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderDashboard();
     renderDailyReminderList();
     renderOwnerWebhookList();
+    renderSyncBanner();
     loadWebhookUrl();
     loadSupabaseCredentials();
     loadGithubConfig();
@@ -149,14 +150,43 @@ function loadSupabaseCredentials() {
 
 function updateSupabaseStatusBadge() {
     const badge = document.getElementById('supabaseConnectionBadge');
-    if (!badge) return;
-    if (supabaseClient) {
-        badge.textContent = '🟢 Connected to shared database — all users see the same data';
-        badge.className = 'connection-badge badge-connected';
-    } else {
-        badge.textContent = '🔴 Using local storage only — data not shared between users';
-        badge.className = 'connection-badge badge-disconnected';
+    if (badge) {
+        if (supabaseClient) {
+            badge.textContent = '🟢 Connected to shared database — all users see the same data';
+            badge.className = 'connection-badge badge-connected';
+        } else {
+            badge.textContent = '🔴 Using local storage only — data not shared between users';
+            badge.className = 'connection-badge badge-disconnected';
+        }
     }
+    renderSyncBanner();
+}
+
+function renderSyncBanner() {
+    const el = document.getElementById('syncBanner');
+    if (!el) return;
+    if (supabaseClient) {
+        el.innerHTML = `
+            <div class="sync-banner sync-banner-ok">
+                🟢 <strong>Shared database connected</strong> — all users see the same data in real time.
+            </div>`;
+    } else {
+        el.innerHTML = `
+            <div class="sync-banner sync-banner-warn">
+                ⚠️ <strong>Data is not shared.</strong>
+                Changes you make are only visible on <em>this</em> device.
+                To share data with everyone, connect a free database.
+                <button class="sync-banner-btn" onclick="switchToTeamsTab()">Set up shared database →</button>
+            </div>`;
+    }
+}
+
+function switchToTeamsTab() {
+    document.querySelector('.tab-btn[data-tab="teams"]').click();
+    setTimeout(() => {
+        const card = document.getElementById('supabaseUrl');
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
 }
 
 async function connectSupabase() {

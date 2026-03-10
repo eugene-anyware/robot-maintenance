@@ -1556,3 +1556,45 @@ table td:last-child {
 .owr-input:not(:placeholder-shown) { border-color: #27ae60; background: #f7fbf7; }
 
 .owr-actions { display: flex; gap: 6px; white-space: nowrap; }
+
+/* ==========================================
+   SYNC BANNER
+   ========================================== */
+.sync-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    flex-wrap: wrap;
+}
+
+.sync-banner-warn {
+    background: #fff8e1;
+    border: 1.5px solid #f9a825;
+    color: #5d4037;
+}
+
+.sync-banner-ok {
+    background: #e8f5e9;
+    border: 1.5px solid #43a047;
+    color: #1b5e20;
+}
+
+.sync-banner-btn {
+    margin-left: auto;
+    padding: 6px 16px;
+    background: #f9a825;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+.sync-banner-btn:hover { background: #f57f17; }
