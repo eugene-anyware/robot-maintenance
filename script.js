@@ -2,8 +2,8 @@
 // Paste your Supabase Project URL and anon key here once.
 // The anon key is safe to commit — it's designed for public client-side use.
 // Everyone who opens the website will automatically connect to the shared database.
-const SUPABASE_URL = '';   // e.g. 'https://xyzxyz.supabase.co'
-const SUPABASE_ANON_KEY = '';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+const SUPABASE_URL = 'https://qfycwnkflvkdpitzvkww.supabase.co';   // e.g. 'https://xyzxyz.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmeWN3bmtmbHZrZHBpdHp2a3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNjcxMzQsImV4cCI6MjA4ODc0MzEzNH0.6kx6BQcZdb6dqXo3VW81YuecBEFFyYKB1V0RnO-eoHU';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 // ────────────────────────────────────────────────────────────────────────────
 
 // Data structure
