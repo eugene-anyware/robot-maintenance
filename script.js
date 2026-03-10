@@ -1741,129 +1741,268 @@ function loadWebhookUrl() {
 }
 
 // ==========================================
-// EXPORT TO EXCEL (.xlsx)
+// EXPORT TO EXCEL (.xlsx)  — uses ExcelJS
 // ==========================================
 
-function exportToExcel() {
-    if (typeof XLSX === 'undefined') {
+async function exportToExcel() {
+    if (typeof ExcelJS === 'undefined') {
         alert('Excel library not loaded yet. Please wait a moment and try again.');
         return;
     }
 
-    updateRobotStatuses();
+    const btn = document.getElementById('exportBtn');
+    if (btn) { btn.textContent = '⏳ Building…'; btn.disabled = true; }
 
-    const wb = XLSX.utils.book_new();
-    const freqKeys  = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
-    const freqNames = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', semiAnnual: 'Semi-Annual', annual: 'Annual' };
+    try {
+        updateRobotStatuses();
 
-    // ── Sheet 1: Fleet Status ─────────────────────────────────────
-    const fleetHeaders = [
-        'Robot ID', 'Customer', 'Location', 'Application', 'Owner', 'Owner Email',
-        'Install Date', 'Days Active', 'Overall Status',
-        ...freqKeys.flatMap(f => [
-            `${freqNames[f]} — Last Done`,
-            `${freqNames[f]} — Next Due`,
-            `${freqNames[f]} — Status`
-        ])
-    ];
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Robot Maintenance Tracker';
+        wb.created = new Date();
 
-    const fleetRows = robots.map(robot => {
-        const daysActive = robot.installDate
-            ? Math.floor((new Date() - new Date(robot.installDate)) / (1000 * 60 * 60 * 24))
-            : '';
-        const overallLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
+        const freqKeys  = ['weekly', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
+        const freqNames = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', semiAnnual: 'Semi-Annual', annual: 'Annual' };
 
-        const row = [
-            robot.id, robot.customer, robot.location, robot.application || '',
-            robot.owner || '', robot.ownerEmail || '',
-            robot.installDate || '', daysActive, overallLabel
+        // ── shared styles ──────────────────────────────────────────
+        const hdrFill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3F51B5' } };
+        const hdrFont  = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+        const hdrAlign = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+        function styleHeader(row) {
+            row.height = 32;
+            row.eachCell(cell => {
+                cell.fill = hdrFill;
+                cell.font = hdrFont;
+                cell.alignment = hdrAlign;
+            });
+        }
+
+        function statusFill(status) {
+            if (status === 'overdue' || status === 'Overdue')   return { type:'pattern', pattern:'solid', fgColor:{argb:'FFFDECEA'} };
+            if (status === 'due' || status === 'Due Soon')      return { type:'pattern', pattern:'solid', fgColor:{argb:'FFFFF8E1'} };
+            return { type:'pattern', pattern:'solid', fgColor:{argb:'FFE8F5E9'} };
+        }
+        function statusFont(status) {
+            if (status === 'overdue' || status === 'Overdue')   return { color:{argb:'FFC62828'}, bold:true };
+            if (status === 'due' || status === 'Due Soon')      return { color:{argb:'FFF57F17'}, bold:true };
+            return { color:{argb:'FF2E7D32'}, bold:true };
+        }
+
+        // ── Sheet 1: Fleet Overview ────────────────────────────────
+        const fleetWs = wb.addWorksheet('Fleet Overview', { views:[{state:'frozen', ySplit:1}] });
+        fleetWs.columns = [
+            {header:'Robot ID',    key:'id',          width:14},
+            {header:'Customer',    key:'customer',     width:20},
+            {header:'Location',    key:'location',     width:18},
+            {header:'Application', key:'app',          width:18},
+            {header:'Owner',       key:'owner',        width:18},
+            {header:'Owner Email', key:'email',        width:26},
+            {header:'Install Date',key:'installDate',  width:14},
+            {header:'Days Active', key:'daysActive',   width:12},
+            {header:'Status',      key:'status',       width:13},
+            ...freqKeys.flatMap(f => [
+                {header:`${freqNames[f]}\nLast Done`, key:`${f}_last`, width:16},
+                {header:`${freqNames[f]}\nNext Due`,  key:`${f}_next`, width:16},
+                {header:`${freqNames[f]}\nStatus`,    key:`${f}_si`,   width:14},
+            ])
         ];
+        styleHeader(fleetWs.getRow(1));
 
-        freqKeys.forEach(freq => {
-            const last    = getLastMaintenanceDateForFrequency(robot.id, freq);
-            const nextDue = getNextDueDate(freq, last, robot.trackingStartDate);
-            const si      = getMaintenanceStatus(nextDue);
-            row.push(last    ? new Date(last).toLocaleDateString('en-US') : 'Never');
-            row.push(nextDue ? nextDue.toLocaleDateString('en-US')        : '—');
-            row.push(si.label);
+        robots.forEach(robot => {
+            const days = robot.installDate
+                ? Math.floor((new Date() - new Date(robot.installDate)) / 86400000) : '';
+            const ovLabel = robot.status === 'good' ? 'On Track' : robot.status === 'due' ? 'Due Soon' : 'Overdue';
+            const rowData = {
+                id: robot.id, customer: robot.customer, location: robot.location,
+                app: robot.application || '', owner: robot.owner || '', email: robot.ownerEmail || '',
+                installDate: robot.installDate || '', daysActive: days, status: ovLabel
+            };
+            freqKeys.forEach(freq => {
+                const last = getLastMaintenanceDateForFrequency(robot.id, freq);
+                const next = getNextDueDate(freq, last, robot.trackingStartDate);
+                const si   = getMaintenanceStatus(next);
+                rowData[`${freq}_last`] = last ? new Date(last).toLocaleDateString('en-US') : 'Never';
+                rowData[`${freq}_next`] = next ? next.toLocaleDateString('en-US') : '—';
+                rowData[`${freq}_si`]   = si.label;
+            });
+
+            const row = fleetWs.addRow(rowData);
+            row.height = 20;
+            row.getCell('id').font = { bold: true };
+            const sc = row.getCell('status');
+            sc.fill = statusFill(robot.status); sc.font = statusFont(robot.status);
+
+            freqKeys.forEach(freq => {
+                const last = getLastMaintenanceDateForFrequency(robot.id, freq);
+                const next = getNextDueDate(freq, last, robot.trackingStartDate);
+                const si   = getMaintenanceStatus(next);
+                const cell = row.getCell(`${freq}_si`);
+                if (si.status !== 'ok') { cell.fill = statusFill(si.status); cell.font = statusFont(si.status); }
+            });
         });
 
-        return row;
-    });
+        // ── Sheet 2: Maintenance Log (with photos) ─────────────────
+        const logWs = wb.addWorksheet('Maintenance Log', { views:[{state:'frozen', ySplit:1}] });
+        logWs.columns = [
+            {header:'Date',             key:'date',     width:13},
+            {header:'Robot ID',         key:'robotId',  width:13},
+            {header:'Customer',         key:'customer', width:20},
+            {header:'Location',         key:'location', width:18},
+            {header:'Owner',            key:'owner',    width:16},
+            {header:'Tasks Completed',  key:'tasks',    width:60},
+            {header:'Notes',            key:'notes',    width:40},
+            {header:'Photos',           key:'photos',   width:45},
+        ];
+        styleHeader(logWs.getRow(1));
 
-    const wsFleet = XLSX.utils.aoa_to_sheet([fleetHeaders, ...fleetRows]);
-    wsFleet['!cols'] = [
-        {wch:12},{wch:18},{wch:16},{wch:16},{wch:16},{wch:24},
-        {wch:13},{wch:12},{wch:13},
-        ...freqKeys.flatMap(() => [{wch:16},{wch:16},{wch:14}])
-    ];
-    XLSX.utils.book_append_sheet(wb, wsFleet, 'Fleet Status');
+        const sortedLogs = [...maintenanceLogs].sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    // ── Sheet 2: Maintenance Log ──────────────────────────────────
-    const logHeaders = ['Date', 'Robot ID', 'Customer', 'Location', 'Owner', 'Tasks Completed', 'Notes', 'Photos'];
-    const logRows = [...maintenanceLogs]
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .map(log => {
-            const robot = robots.find(r => r.id === log.robotId);
-            const tasks = Array.isArray(log.tasks) ? log.tasks.join('; ') : (log.tasks || '');
-            return [
-                log.date,
-                log.robotId,
-                robot ? robot.customer  : '',
-                robot ? robot.location  : '',
-                robot ? (robot.owner || '') : '',
+        for (const log of sortedLogs) {
+            const robot  = robots.find(r => r.id === log.robotId);
+            const tasks  = Array.isArray(log.tasks) ? log.tasks.join('\n') : (log.tasks || '');
+            const photos = log.photos || [];
+
+            const row = logWs.addRow({
+                date:     log.date,
+                robotId:  log.robotId,
+                customer: robot ? robot.customer      : '',
+                location: robot ? robot.location      : '',
+                owner:    robot ? (robot.owner || '') : '',
                 tasks,
-                log.notes || '',
-                log.photos && log.photos.length > 0 ? `${log.photos.length} photo(s)` : ''
+                notes:    log.notes || '',
+                photos:   ''
+            });
+            row.getCell('tasks').alignment = { wrapText: true, vertical: 'top' };
+            row.getCell('notes').alignment = { wrapText: true, vertical: 'top' };
+            row.height = 20;
+
+            if (photos.length > 0) {
+                const first = photos[0];
+                if (first && first.startsWith('data:image')) {
+                    // Base64 — embed image directly in the cell area
+                    row.height = 90;
+                    photos.forEach((photoData, idx) => {
+                        try {
+                            const m = photoData.match(/^data:image\/(\w+);base64,(.+)$/);
+                            if (!m) return;
+                            const ext = m[1] === 'jpg' ? 'jpeg' : m[1];
+                            const imgId = wb.addImage({ base64: m[2], extension: ext });
+                            // col 8 = Photos col (0-based: 7), each extra photo shifts right
+                            logWs.addImage(imgId, {
+                                tl: { col: 7 + idx, row: row.number - 1 },
+                                br: { col: 8 + idx, row: row.number },
+                                editAs: 'oneCell'
+                            });
+                            if (idx > 0) {
+                                const extraCol = logWs.getColumn(8 + idx);
+                                if (!extraCol.width || extraCol.width < 15) extraCol.width = 15;
+                            }
+                        } catch(e) { console.warn('Image embed error:', e); }
+                    });
+                    row.getCell('photos').value = `${photos.length} photo(s) embedded →`;
+                } else if (first && first.startsWith('http')) {
+                    // Supabase URL — add as clickable hyperlink(s)
+                    const cell = row.getCell('photos');
+                    if (photos.length === 1) {
+                        cell.value = { text: 'View Photo', hyperlink: first };
+                        cell.font = { color:{argb:'FF0563C1'}, underline:true };
+                    } else {
+                        cell.value = `${photos.length} photos (see links below)`;
+                        // Add each URL on subsequent rows as sub-rows
+                        photos.forEach((url, idx) => {
+                            const linkRow = logWs.addRow({ photos: `  Photo ${idx+1}` });
+                            const lc = linkRow.getCell('photos');
+                            lc.value = { text: `Photo ${idx+1}`, hyperlink: url };
+                            lc.font  = { color:{argb:'FF0563C1'}, underline:true };
+                            linkRow.height = 16;
+                        });
+                    }
+                }
+            }
+        }
+
+        // ── Sheet 3: Daily Checks ──────────────────────────────────
+        const dailyWs = wb.addWorksheet('Daily Checks');
+        dailyWs.columns = [
+            {header:'#',     key:'num',   width:5},
+            {header:'Daily Check Item', key:'label', width:55},
+            {header:'Link',  key:'url',   width:65},
+        ];
+        styleHeader(dailyWs.getRow(1));
+        dailyReminderItems.forEach((item, i) => {
+            const row = dailyWs.addRow({ num: i+1, label: item.label, url: item.url || '' });
+            if (item.url) {
+                const c = row.getCell('url');
+                c.value = { text: item.url, hyperlink: item.url };
+                c.font  = { color:{argb:'FF0563C1'}, underline:true };
+            }
+        });
+
+        // ── Sheets 4-8: Task lists per frequency ───────────────────
+        freqKeys.forEach(freq => {
+            const ws = wb.addWorksheet(`${freqNames[freq]} Tasks`);
+            ws.columns = [
+                {header:'Task',        key:'task',    width:55},
+                {header:'Part Number', key:'part',    width:18},
+                {header:'Notes',       key:'notes',   width:45},
             ];
+            styleHeader(ws.getRow(1));
+            (maintenanceSchedule[freq] || []).forEach(t => {
+                ws.addRow({ task: t.task, part: t.partNumber||'', notes: t.note||'' });
+            });
+            customTasks.filter(t => t.frequency === freq).forEach(t => {
+                const r = ws.addRow({ task: `${t.task} ★ (custom)`, part: t.partNumber||'', notes: t.note||'' });
+                r.font = { italic: true };
+            });
         });
 
-    const wsLog = XLSX.utils.aoa_to_sheet([logHeaders, ...logRows]);
-    wsLog['!cols'] = [{wch:12},{wch:12},{wch:18},{wch:16},{wch:16},{wch:60},{wch:40},{wch:10}];
-    XLSX.utils.book_append_sheet(wb, wsLog, 'Maintenance Log');
+        // ── Sheet 9: Check Tracker ─────────────────────────────────
+        const trackerWs = wb.addWorksheet('Check Tracker', { views:[{state:'frozen', xSplit:3, ySplit:1}] });
+        const uniqueDates = [...new Set(maintenanceLogs.map(l => l.date))]
+            .sort((a,b) => new Date(b) - new Date(a)).slice(0, 24);
 
-    // ── Sheet 3: Daily Checks ─────────────────────────────────────
-    const dailyHeaders = ['#', 'Daily Check Item', 'Link'];
-    const dailyRows = dailyReminderItems.map((item, i) => [i + 1, item.label, item.url || '']);
-    const wsDaily = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
-    wsDaily['!cols'] = [{wch:4},{wch:55},{wch:65}];
-    XLSX.utils.book_append_sheet(wb, wsDaily, 'Daily Checks');
+        trackerWs.columns = [
+            {header:'Robot ID', key:'id',       width:13},
+            {header:'Customer', key:'customer',  width:20},
+            {header:'Owner',    key:'owner',     width:16},
+            ...uniqueDates.map(d => ({header: d, key: d, width: 13}))
+        ];
+        styleHeader(trackerWs.getRow(1));
 
-    // ── Sheets 4-8: Task reference lists per frequency ────────────
-    freqKeys.forEach(freq => {
-        const taskHeaders = ['Task', 'Part Number', 'Notes'];
-        const builtIn = (maintenanceSchedule[freq] || []).map(t => [t.task, t.partNumber || '', t.note || '']);
-        const custom  = customTasks.filter(t => t.frequency === freq).map(t => [`${t.task} (custom)`, t.partNumber || '', t.note || '']);
-        const ws = XLSX.utils.aoa_to_sheet([taskHeaders, ...builtIn, ...custom]);
-        ws['!cols'] = [{wch:55},{wch:16},{wch:45}];
-        XLSX.utils.book_append_sheet(wb, ws, `${freqNames[freq]} Tasks`);
-    });
-
-    // ── Sheet 9: Per-robot check tracker (pivot style) ───────────
-    // Rows = robots, columns = one per log entry (most recent 20)
-    const recentLogs = [...maintenanceLogs].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 40);
-    const uniqueDates = [...new Set(recentLogs.map(l => l.date))].sort((a,b) => new Date(b)-new Date(a)).slice(0, 20);
-
-    const trackerHeaders = ['Robot ID', 'Customer', 'Owner', ...uniqueDates];
-    const trackerRows = robots.map(robot => {
-        const row = [robot.id, robot.customer, robot.owner || ''];
-        uniqueDates.forEach(date => {
-            const log = maintenanceLogs.find(l => l.robotId === robot.id && l.date === date);
-            row.push(log ? '✓' : '');
+        robots.forEach(robot => {
+            const rd = { id: robot.id, customer: robot.customer, owner: robot.owner || '' };
+            uniqueDates.forEach(date => {
+                rd[date] = maintenanceLogs.some(l => l.robotId === robot.id && l.date === date) ? '✓' : '';
+            });
+            const row = trackerWs.addRow(rd);
+            row.getCell('id').font = { bold: true };
+            uniqueDates.forEach(date => {
+                const c = row.getCell(date);
+                if (c.value === '✓') {
+                    c.fill  = { type:'pattern', pattern:'solid', fgColor:{argb:'FFE8F5E9'} };
+                    c.font  = { color:{argb:'FF2E7D32'}, bold:true };
+                    c.alignment = { horizontal:'center' };
+                }
+            });
         });
-        return row;
-    });
 
-    const wsTracker = XLSX.utils.aoa_to_sheet([trackerHeaders, ...trackerRows]);
-    wsTracker['!cols'] = [{wch:12},{wch:18},{wch:16},...uniqueDates.map(()=>({wch:12}))];
-    XLSX.utils.book_append_sheet(wb, wsTracker, 'Check Tracker');
+        // ── Download ───────────────────────────────────────────────
+        const buffer   = await wb.xlsx.writeBuffer();
+        const blob     = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url      = URL.createObjectURL(blob);
+        const a        = document.createElement('a');
+        a.href         = url;
+        a.download     = `Robot-Maintenance-${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-    // ── Download ──────────────────────────────────────────────────
-    const fileName = `Robot-Maintenance-${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    } finally {
+        if (btn) { btn.textContent = '⬇ Export Excel'; btn.disabled = false; }
+    }
 }
 
-// Keep old exportData as alias in case anything references it
 function exportData() { exportToExcel(); }
 
 // ==========================================
