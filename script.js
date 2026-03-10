@@ -1,3 +1,11 @@
+// ── Shared Database Config ─────────────────────────────────────────────────
+// Paste your Supabase Project URL and anon key here once.
+// The anon key is safe to commit — it's designed for public client-side use.
+// Everyone who opens the website will automatically connect to the shared database.
+const SUPABASE_URL = '';   // e.g. 'https://xyzxyz.supabase.co'
+const SUPABASE_ANON_KEY = '';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+// ────────────────────────────────────────────────────────────────────────────
+
 // Data structure
 let robots = [];
 let maintenanceLogs = [];
@@ -119,8 +127,14 @@ function updateClock() {
 // ==========================================
 
 async function initSupabase() {
-    const url = localStorage.getItem('supabaseUrl');
-    const key = localStorage.getItem('supabaseKey');
+    // Use hardcoded credentials first; fall back to anything saved in localStorage
+    const url = (SUPABASE_URL && SUPABASE_URL.startsWith('https://'))
+        ? SUPABASE_URL
+        : localStorage.getItem('supabaseUrl');
+    const key = (SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.length > 20)
+        ? SUPABASE_ANON_KEY
+        : localStorage.getItem('supabaseKey');
+
     if (url && key && typeof supabase !== 'undefined') {
         try {
             supabaseClient = supabase.createClient(url, key);
@@ -130,6 +144,9 @@ async function initSupabase() {
                 supabaseClient = null;
             } else {
                 console.log('Supabase connected');
+                // Persist so the manual setup fields also show as connected
+                localStorage.setItem('supabaseUrl', url);
+                localStorage.setItem('supabaseKey', key);
             }
         } catch (e) {
             console.error('Supabase init error:', e);
